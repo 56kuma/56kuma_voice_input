@@ -1,0 +1,24 @@
+# voice_input configuration. Copy to the path printed by
+# `voice_input --config-path` (e.g. ~/.config/voice_input/config.toml on
+# Linux, %APPDATA%\voice_input\config\config.toml on Windows).
+# Every field is optional; these are the defaults.
+
+hotkey = "Ctrl+Space"      # toggle: press to start, press again to stop
+provider = "openai"        # only provider in the MVP
+error_display_secs = 3     # how long "!" stays before returning to idle
+
+[audio]
+sample_rate = 16000        # mono 16 kHz PCM is sent to the API
+
+[openai]
+model = "gpt-4o-mini-transcribe"   # or "whisper-1"
+# language = "ja"          # ISO-639-1; omit for auto-detect
+base_url = "https://api.openai.com/v1"
+timeout_secs = 30
+# api_key = "sk-..."       # LAST resort. Prefer `voice_input --set-api-key`
+#                          # (OS credential store) or OPENAI_API_KEY.
+
+[overlay]
+position = "top-center"    # top-center | top-left | top-right
+margin = 12.0              # px from the screen edge
+height = 44.0              # px; width = height x sqrt(2) (silver ratio)

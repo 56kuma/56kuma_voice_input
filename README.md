@@ -89,11 +89,11 @@ src/
 Red → Green → Refactor を小さく回しています。コミット履歴がそのままサイクルの記録です。
 
 ```bash
-cargo test                 # 63 テスト。マイク・ネットワーク・ディスプレイ不要
+cargo test                 # 66 テスト。マイク・ネットワーク・ディスプレイ不要
 cargo clippy --all-targets -- -D warnings
 cargo check --target x86_64-pc-windows-gnu   # Linux 上で Windows 向けに検証
 ```
 
-最重要テストは `src/app/state.rs`（状態遷移）と `tests/controller.rs`（Fake で全体を通す）にあります。
+最重要テストは `src/app/state.rs`（状態遷移）、`tests/controller.rs`（Fake で全体を通す）、`tests/hotkey.rs`（連打しても二重起動しない）にあります。
 
 ホットキーが反応しないときの切り分け用に `cargo run --example hotkey_probe` があります（6 秒間 Ctrl+Space を待ち、押すたびに `TOGGLE` を表示）。

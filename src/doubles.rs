@@ -10,6 +10,7 @@ use crate::app::state::State;
 use crate::audio::audio_data::AudioData;
 use crate::audio::{AudioError, AudioRecorder};
 use crate::config::credentials::{CredentialError, CredentialStore};
+use crate::hotkey::{Hotkey, HotkeyError, HotkeyProvider};
 use crate::input::{InputError, TextInjector};
 use crate::transcription::{TranscriptionError, TranscriptionProvider};
 use crate::ui::Overlay;
@@ -234,6 +235,48 @@ impl CredentialStore for FakeCredentialStore {
 
     fn delete(&self, account: &str) -> Result<(), CredentialError> {
         self.secrets.lock().unwrap().remove(account);
+        Ok(())
+    }
+}
+
+/// A hotkey provider you can "press" from a test.
+#[derive(Default)]
+pub struct FakeHotkeyProvider {
+    on_toggle: Option<Box<dyn Fn() + Send + Sync>>,
+    fail: bool,
+}
+
+impl FakeHotkeyProvider {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Simulates an OS that refuses the registration.
+    pub fn failing() -> Self {
+        Self {
+            on_toggle: None,
+            fail: true,
+        }
+    }
+
+    /// Simulates one press of the registered hotkey.
+    pub fn press(&self) {
+        if let Some(cb) = &self.on_toggle {
+            cb();
+        }
+    }
+}
+
+impl HotkeyProvider for FakeHotkeyProvider {
+    fn register(
+        &mut self,
+        hotkey: &Hotkey,
+        on_toggle: Box<dyn Fn() + Send + Sync>,
+    ) -> Result<(), HotkeyError> {
+        if self.fail {
+            return Err(HotkeyError::Register(hotkey.to_string(), "fake".into()));
+        }
+        self.on_toggle = Some(on_toggle);
         Ok(())
     }
 }

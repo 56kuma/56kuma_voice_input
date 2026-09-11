@@ -160,8 +160,13 @@ fn run() {
                 events.hotkey_toggled();
             }
         });
-        let registered = voice_input::platform::hotkey_provider()
-            .and_then(|mut provider| provider.register(&hotkey, on_toggle));
+        let registered = voice_input::platform::hotkey_provider().and_then(|mut provider| {
+            provider.register(&hotkey, on_toggle)?;
+            // The hotkey is unregistered when the provider drops, and it must
+            // outlive everything else, so it is intentionally leaked.
+            Box::leak(provider);
+            Ok(())
+        });
         if let Err(e) = registered {
             // Never fail silently: log it and pin the overlay to Error.
             log::error!("HOTKEY UNAVAILABLE: {e}");

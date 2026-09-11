@@ -99,6 +99,9 @@ impl std::fmt::Display for Hotkey {
 }
 
 /// Registers a toggle hotkey and calls `on_toggle` each time it fires.
+///
+/// The registration lives exactly as long as the provider: dropping it
+/// unregisters the hotkey, so the caller must keep it alive.
 pub trait HotkeyProvider {
     fn register(
         &mut self,

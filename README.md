@@ -13,6 +13,8 @@ Idle ──Ctrl+Space──▶ Recording ──Ctrl+Space──▶ Transcribing 
 
 画面上部中央に小さな半透明のカプセルが 1 つ出ます。文字は出しません。
 
+<img src="docs/overlay-states.png" alt="Idle / Error / Idle の実表示（Xvfb 上でキャプチャ）" width="120">
+
 | 表示 | 状態 |
 |------|------|
 | ○    | Idle |
@@ -93,3 +95,5 @@ cargo check --target x86_64-pc-windows-gnu   # Linux 上で Windows 向けに検
 ```
 
 最重要テストは `src/app/state.rs`（状態遷移）と `tests/controller.rs`（Fake で全体を通す）にあります。
+
+ホットキーが反応しないときの切り分け用に `cargo run --example hotkey_probe` があります（6 秒間 Ctrl+Space を待ち、押すたびに `TOGGLE` を表示）。

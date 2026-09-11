@@ -63,10 +63,12 @@ impl HotkeyProvider for NativeHotkeyProvider {
             .name("hotkey-listener".into())
             .spawn(move || {
                 while let Ok(event) = receiver.recv() {
+                    log::debug!("hotkey event {:?}", event);
                     if event.id() == id && event.state() == HotKeyState::Pressed {
                         on_toggle();
                     }
                 }
+                log::warn!("hotkey channel closed; hotkey no longer active");
             })
             .map_err(|e| HotkeyError::Register(hotkey.to_string(), e.to_string()))?;
         log::info!("registered global hotkey {hotkey}");

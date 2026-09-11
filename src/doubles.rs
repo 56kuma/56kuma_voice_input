@@ -9,6 +9,7 @@ use std::sync::{Arc, Mutex};
 use crate::app::state::State;
 use crate::audio::audio_data::AudioData;
 use crate::audio::{AudioError, AudioRecorder};
+use crate::config::credentials::{CredentialError, CredentialStore};
 use crate::input::{InputError, TextInjector};
 use crate::transcription::{TranscriptionError, TranscriptionProvider};
 use crate::ui::Overlay;
@@ -183,5 +184,56 @@ impl FakeOverlay {
 impl Overlay for FakeOverlay {
     fn render(&self, state: State) {
         self.rendered.lock().unwrap().push(state);
+    }
+}
+
+/// In-memory credential store; `broken()` simulates a missing keyring.
+#[derive(Clone, Default)]
+pub struct FakeCredentialStore {
+    secrets: Arc<Mutex<std::collections::HashMap<String, String>>>,
+    broken: bool,
+}
+
+impl FakeCredentialStore {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn with(account: &str, secret: &str) -> Self {
+        let store = Self::new();
+        store.set(account, secret).unwrap();
+        store
+    }
+
+    pub fn broken() -> Self {
+        Self {
+            broken: true,
+            ..Self::default()
+        }
+    }
+}
+
+impl CredentialStore for FakeCredentialStore {
+    fn get(&self, account: &str) -> Result<Option<String>, CredentialError> {
+        if self.broken {
+            return Err(CredentialError::Unavailable("fake".into()));
+        }
+        Ok(self.secrets.lock().unwrap().get(account).cloned())
+    }
+
+    fn set(&self, account: &str, secret: &str) -> Result<(), CredentialError> {
+        if self.broken {
+            return Err(CredentialError::Unavailable("fake".into()));
+        }
+        self.secrets
+            .lock()
+            .unwrap()
+            .insert(account.to_owned(), secret.to_owned());
+        Ok(())
+    }
+
+    fn delete(&self, account: &str) -> Result<(), CredentialError> {
+        self.secrets.lock().unwrap().remove(account);
+        Ok(())
     }
 }

@@ -7,6 +7,7 @@
 
 pub mod app;
 pub mod audio;
+pub mod config;
 pub mod doubles;
 pub mod hotkey;
 pub mod input;

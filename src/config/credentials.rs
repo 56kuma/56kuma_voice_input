@@ -120,7 +120,10 @@ mod tests {
     fn blank_values_are_skipped_and_none_means_no_key() {
         let store = FakeCredentialStore::with(OPENAI_ACCOUNT, "   ");
 
-        assert_eq!(resolve_api_key(&store, |_| Some(String::new()), Some(" ")), None);
+        assert_eq!(
+            resolve_api_key(&store, |_| Some(String::new()), Some(" ")),
+            None
+        );
         assert_eq!(resolve_api_key(&store, no_env, None), None);
     }
 

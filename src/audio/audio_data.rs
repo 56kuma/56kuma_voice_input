@@ -162,7 +162,10 @@ mod tests {
         assert_eq!(&bytes[8..12], b"WAVE");
         let mut reader = hound::WavReader::new(std::io::Cursor::new(bytes)).unwrap();
         let spec = reader.spec();
-        assert_eq!((spec.channels, spec.sample_rate, spec.bits_per_sample), (1, 16_000, 16));
+        assert_eq!(
+            (spec.channels, spec.sample_rate, spec.bits_per_sample),
+            (1, 16_000, 16)
+        );
         let samples: Vec<i16> = reader.samples::<i16>().map(Result::unwrap).collect();
         assert_eq!(samples, audio.samples());
     }

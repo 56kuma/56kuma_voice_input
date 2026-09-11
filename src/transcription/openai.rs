@@ -43,7 +43,10 @@ impl OpenAiConfig {
     }
 
     pub fn endpoint(&self) -> String {
-        format!("{}/audio/transcriptions", self.base_url.trim_end_matches('/'))
+        format!(
+            "{}/audio/transcriptions",
+            self.base_url.trim_end_matches('/')
+        )
     }
 }
 
@@ -157,7 +160,10 @@ mod tests {
         let cfg = OpenAiConfig::default();
         assert_eq!(
             cfg.request_fields(),
-            vec![("model", DEFAULT_MODEL.to_owned()), ("response_format", "json".to_owned())]
+            vec![
+                ("model", DEFAULT_MODEL.to_owned()),
+                ("response_format", "json".to_owned())
+            ]
         );
 
         let cfg = OpenAiConfig {
@@ -181,12 +187,18 @@ mod tests {
             base_url: "https://example.test/v1/".into(),
             ..Default::default()
         };
-        assert_eq!(cfg.endpoint(), "https://example.test/v1/audio/transcriptions");
+        assert_eq!(
+            cfg.endpoint(),
+            "https://example.test/v1/audio/transcriptions"
+        );
     }
 
     #[test]
     fn success_body_yields_text() {
-        assert_eq!(parse_response(200, r#"{"text":"こんにちは"}"#), Ok("こんにちは".into()));
+        assert_eq!(
+            parse_response(200, r#"{"text":"こんにちは"}"#),
+            Ok("こんにちは".into())
+        );
     }
 
     #[test]
@@ -203,8 +215,14 @@ mod tests {
 
     #[test]
     fn auth_and_rate_limit_statuses_map_to_dedicated_errors() {
-        assert_eq!(parse_response(401, "{}"), Err(TranscriptionError::Unauthorized));
-        assert_eq!(parse_response(429, "{}"), Err(TranscriptionError::RateLimited));
+        assert_eq!(
+            parse_response(401, "{}"),
+            Err(TranscriptionError::Unauthorized)
+        );
+        assert_eq!(
+            parse_response(429, "{}"),
+            Err(TranscriptionError::RateLimited)
+        );
     }
 
     #[test]
@@ -235,7 +253,9 @@ mod tests {
             },
         );
 
-        let result = provider.transcribe(AudioData::new(16_000, vec![0; 160])).await;
+        let result = provider
+            .transcribe(AudioData::new(16_000, vec![0; 160]))
+            .await;
 
         assert_eq!(result, Err(TranscriptionError::MissingApiKey));
     }

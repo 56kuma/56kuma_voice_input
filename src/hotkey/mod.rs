@@ -1,6 +1,13 @@
 //! Global hotkey. The trait and the pure helpers (parsing, debouncing) live
 //! here; OS adapters live in `windows.rs` / `linux.rs`.
 
+#[cfg(target_os = "linux")]
+pub mod linux;
+#[cfg(any(windows, target_os = "linux"))]
+mod native;
+#[cfg(windows)]
+pub mod windows;
+
 use std::time::{Duration, Instant};
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
@@ -147,8 +154,17 @@ mod tests {
 
     #[test]
     fn parses_ctrl_space_case_insensitively_with_spaces() {
-        for text in ["Ctrl+Space", "ctrl+space", " CTRL + SPACE ", "Control+Space"] {
-            assert_eq!(Hotkey::parse(text).unwrap(), Hotkey::default_toggle(), "{text:?}");
+        for text in [
+            "Ctrl+Space",
+            "ctrl+space",
+            " CTRL + SPACE ",
+            "Control+Space",
+        ] {
+            assert_eq!(
+                Hotkey::parse(text).unwrap(),
+                Hotkey::default_toggle(),
+                "{text:?}"
+            );
         }
     }
 

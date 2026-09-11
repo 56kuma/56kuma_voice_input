@@ -8,8 +8,9 @@
 use crate::audio::audio_data::AudioData;
 
 /// Observable application state (mirrored 1:1 in the overlay UI).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum State {
+    #[default]
     Idle,
     Recording,
     Transcribing,
@@ -76,12 +77,6 @@ pub enum Effect {
 #[derive(Debug, Default)]
 pub struct StateMachine {
     state: State,
-}
-
-impl Default for State {
-    fn default() -> Self {
-        State::Idle
-    }
 }
 
 impl StateMachine {

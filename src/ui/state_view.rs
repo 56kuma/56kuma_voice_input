@@ -208,7 +208,10 @@ mod tests {
         view.apply(State::Inserting, now);
         view.apply(State::Idle, now);
         assert!(view.needs_animation(now), "flash is animated");
-        assert!(!view.needs_animation(now + COMPLETE_FLASH), "then static again");
+        assert!(
+            !view.needs_animation(now + COMPLETE_FLASH),
+            "then static again"
+        );
     }
 
     #[test]
@@ -238,8 +241,14 @@ mod tests {
         let l = Layout::from_height(44.0);
 
         assert!((l.width / l.height - SILVER).abs() < 1e-3);
-        assert!((l.glyph_size * SILVER * SILVER - l.height).abs() < 1e-3, "glyph = h/2");
-        assert!((l.corner_radius * SILVER * SILVER * SILVER - l.height).abs() < 1e-3, "corner = h/(2√2)");
+        assert!(
+            (l.glyph_size * SILVER * SILVER - l.height).abs() < 1e-3,
+            "glyph = h/2"
+        );
+        assert!(
+            (l.corner_radius * SILVER * SILVER * SILVER - l.height).abs() < 1e-3,
+            "corner = h/(2√2)"
+        );
         assert!(l.padding > 0.0 && l.padding < l.height / 2.0);
     }
 }

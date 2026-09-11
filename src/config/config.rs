@@ -176,13 +176,23 @@ mod tests {
 
     #[test]
     fn unknown_fields_and_bad_syntax_are_errors_not_silently_ignored() {
-        assert!(matches!(AppConfig::from_toml("hotkei = 'x'"), Err(ConfigError::Parse(_))));
-        assert!(matches!(AppConfig::from_toml("hotkey = "), Err(ConfigError::Parse(_))));
+        assert!(matches!(
+            AppConfig::from_toml("hotkei = 'x'"),
+            Err(ConfigError::Parse(_))
+        ));
+        assert!(matches!(
+            AppConfig::from_toml("hotkey = "),
+            Err(ConfigError::Parse(_))
+        ));
     }
 
     #[test]
     fn default_path_ends_with_voice_input_config_toml() {
         let path = AppConfig::default_path().expect("a config dir exists on CI");
-        assert!(path.ends_with("voice_input/config.toml"), "{}", path.display());
+        assert!(
+            path.ends_with("voice_input/config.toml"),
+            "{}",
+            path.display()
+        );
     }
 }

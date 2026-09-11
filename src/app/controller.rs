@@ -133,7 +133,9 @@ impl Controller {
                     // ever written to disk.
                     let event = match provider.transcribe(audio).await {
                         Ok(text) => Event::TranscriptionSucceeded(text),
-                        Err(err) => Event::Failed(Failure::new(Stage::Transcription, err.to_string())),
+                        Err(err) => {
+                            Event::Failed(Failure::new(Stage::Transcription, err.to_string()))
+                        }
                     };
                     let _ = tx.send(event);
                 });

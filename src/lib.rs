@@ -11,5 +11,6 @@ pub mod config;
 pub mod doubles;
 pub mod hotkey;
 pub mod input;
+pub mod platform;
 pub mod transcription;
 pub mod ui;

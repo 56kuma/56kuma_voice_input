@@ -5,6 +5,8 @@
 //! It never touches the OS, the network, or the screen, which is what makes
 //! it fully unit-testable.
 
+use crate::audio::audio_data::AudioData;
+
 /// Observable application state (mirrored 1:1 in the overlay UI).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum State {
@@ -20,6 +22,8 @@ pub enum State {
 pub enum Event {
     /// The global hotkey (default Ctrl+Space) was toggled.
     HotkeyToggled,
+    /// The recorder stopped and produced audio.
+    RecordingFinished(AudioData),
 }
 
 /// Something the state machine asks the outside world to do.
@@ -29,6 +33,8 @@ pub enum Effect {
     /// Stop the recorder; the controller reports back with
     /// [`Event::RecordingFinished`] or [`Event::Failed`].
     StopRecording,
+    /// Send audio to the transcription provider.
+    Transcribe(AudioData),
     Render(State),
 }
 
@@ -62,6 +68,9 @@ impl StateMachine {
                 self.state = State::Transcribing;
                 vec![Effect::StopRecording, Effect::Render(State::Transcribing)]
             }
+            (State::Transcribing, Event::RecordingFinished(audio)) => {
+                vec![Effect::Transcribe(audio)]
+            }
             _ => vec![],
         }
     }
@@ -86,6 +95,22 @@ mod tests {
             effects,
             vec![Effect::StopRecording, Effect::Render(State::Transcribing)]
         );
+    }
+
+    #[test]
+    fn finished_recording_is_sent_to_transcription() {
+        // Arrange
+        let mut sm = StateMachine::new();
+        sm.handle(Event::HotkeyToggled);
+        sm.handle(Event::HotkeyToggled);
+        let audio = AudioData::new(16_000, vec![1, 2, 3]);
+
+        // Act
+        let effects = sm.handle(Event::RecordingFinished(audio.clone()));
+
+        // Assert
+        assert_eq!(sm.state(), State::Transcribing);
+        assert_eq!(effects, vec![Effect::Transcribe(audio)]);
     }
 
     #[test]

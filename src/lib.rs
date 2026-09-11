@@ -6,3 +6,4 @@
 //! lives in pure, testable modules under `app/`.
 
 pub mod app;
+pub mod audio;

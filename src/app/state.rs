@@ -26,6 +26,9 @@ pub enum Event {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Effect {
     StartRecording,
+    /// Stop the recorder; the controller reports back with
+    /// [`Event::RecordingFinished`] or [`Event::Failed`].
+    StopRecording,
     Render(State),
 }
 
@@ -55,6 +58,10 @@ impl StateMachine {
                 self.state = State::Recording;
                 vec![Effect::StartRecording, Effect::Render(State::Recording)]
             }
+            (State::Recording, Event::HotkeyToggled) => {
+                self.state = State::Transcribing;
+                vec![Effect::StopRecording, Effect::Render(State::Transcribing)]
+            }
             _ => vec![],
         }
     }
@@ -63,6 +70,23 @@ impl StateMachine {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn recording_plus_hotkey_transitions_to_transcribing_and_stops_recorder() {
+        // Arrange
+        let mut sm = StateMachine::new();
+        sm.handle(Event::HotkeyToggled);
+
+        // Act
+        let effects = sm.handle(Event::HotkeyToggled);
+
+        // Assert
+        assert_eq!(sm.state(), State::Transcribing);
+        assert_eq!(
+            effects,
+            vec![Effect::StopRecording, Effect::Render(State::Transcribing)]
+        );
+    }
 
     #[test]
     fn idle_plus_hotkey_transitions_to_recording() {

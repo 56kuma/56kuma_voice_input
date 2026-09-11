@@ -7,3 +7,7 @@
 
 pub mod app;
 pub mod audio;
+pub mod doubles;
+pub mod input;
+pub mod transcription;
+pub mod ui;

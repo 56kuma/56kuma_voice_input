@@ -40,6 +40,9 @@ x11rb = { version = "0.13", features = ["xtest"] }
 ashpd = { version = "0.11", default-features = false, features = ["tokio"] }
 futures-util = "0.3"
 
+[dev-dependencies]
+tokio = { version = "1", features = ["rt", "macros", "sync", "time", "test-util"] }
+
 [profile.release]
 opt-level = "s"
 lto = true

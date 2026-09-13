@@ -109,22 +109,32 @@ impl AppConfig {
             .map(|d| d.config_dir().join("config.toml"))
     }
 
-    /// Loads the file at `default_path()`; a missing file means defaults.
+    /// Where `load()` looks, in priority order: `config.toml` in the
+    /// working directory (repo-local override), then `default_path()`.
+    pub fn candidate_paths() -> Vec<PathBuf> {
+        let mut paths = vec![PathBuf::from("config.toml")];
+        paths.extend(Self::default_path());
+        paths
+    }
+
+    /// Loads the first candidate that exists; none existing means defaults.
     pub fn load() -> Result<Self, ConfigError> {
-        let Some(path) = Self::default_path() else {
-            return Ok(Self::default());
-        };
-        match std::fs::read_to_string(&path) {
-            Ok(text) => {
-                log::info!("loaded config from {}", path.display());
-                Self::from_toml(&text)
+        Self::load_first(&Self::candidate_paths())
+    }
+
+    fn load_first(paths: &[PathBuf]) -> Result<Self, ConfigError> {
+        for path in paths {
+            match std::fs::read_to_string(path) {
+                Ok(text) => {
+                    log::info!("loaded config from {}", path.display());
+                    return Self::from_toml(&text);
+                }
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => continue,
+                Err(e) => return Err(e.into()),
             }
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-                log::info!("no config at {}, using defaults", path.display());
-                Ok(Self::default())
-            }
-            Err(e) => Err(e.into()),
         }
+        log::info!("no config file found, using defaults");
+        Ok(Self::default())
     }
 
     pub fn openai_config(&self) -> crate::transcription::openai::OpenAiConfig {
@@ -187,10 +197,34 @@ mod tests {
     }
 
     #[test]
+    fn candidate_paths_prefer_the_working_directory_config() {
+        let paths = AppConfig::candidate_paths();
+        assert_eq!(paths[0], PathBuf::from("config.toml"));
+    }
+
+    #[test]
+    fn load_first_takes_the_first_existing_file_and_skips_missing_ones() {
+        let dir = std::env::temp_dir().join(format!("voice_input_test_{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let existing = dir.join("config.toml");
+        std::fs::write(&existing, "error_display_secs = 7").unwrap();
+
+        let cfg = AppConfig::load_first(&[dir.join("missing.toml"), existing]).unwrap();
+        assert_eq!(cfg.error_display_secs, 7);
+
+        let cfg = AppConfig::load_first(&[dir.join("missing.toml")]).unwrap();
+        assert_eq!(cfg, AppConfig::default());
+
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
     fn default_path_ends_with_voice_input_config_toml() {
         let path = AppConfig::default_path().expect("a config dir exists on CI");
+        // Linux: .../voice_input/config.toml; Windows: ...\voice_input\config\config.toml
         assert!(
-            path.ends_with("voice_input/config.toml"),
+            path.ends_with("voice_input/config.toml")
+                || path.ends_with("voice_input/config/config.toml"),
             "{}",
             path.display()
         );

@@ -1,4 +1,8 @@
 /target
 *.log
+/log/
 # never commit local config that might carry secrets
+/config.toml
 /config.local.toml
+/local.env
+/local

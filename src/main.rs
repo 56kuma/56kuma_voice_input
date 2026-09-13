@@ -1,3 +1,7 @@
+// GUI subsystem on Windows: no console window when launched directly.
+// CLI flags still work from a terminal via attach_parent_console().
+#![cfg_attr(windows, windows_subsystem = "windows")]
+
 //! Entry point: wires the pure controller to the OS adapters.
 //!
 //! Threads:
@@ -31,25 +35,109 @@ USAGE:
     voice_input --set-api-key   read an API key from stdin and store it in
                                 the OS credential store
     voice_input --delete-api-key
-    voice_input --config-path   print where config.toml is read from
+    voice_input --config-path   print where config.toml is looked for,
+                                in priority order (first match wins)
     voice_input --help | --version
 
 Logging: RUST_LOG=debug voice_input  (never logs keys, audio, or text)
+         Also appended to log/voice_input.log in the working directory.
 ";
 
-fn main() {
+/// Writes every log line to stderr and, when it could be opened, to
+/// `log/voice_input.log` (append) so startup errors survive the console.
+struct TeeWriter {
+    file: Option<std::fs::File>,
+}
+
+impl std::io::Write for TeeWriter {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        let _ = std::io::stderr().write_all(buf);
+        if let Some(file) = &mut self.file {
+            file.write_all(buf)?;
+        }
+        Ok(buf.len())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        let _ = std::io::stderr().flush();
+        if let Some(file) = &mut self.file {
+            file.flush()?;
+        }
+        Ok(())
+    }
+}
+
+fn init_logging() {
+    let file = std::fs::create_dir_all("log")
+        .and_then(|()| {
+            std::fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open("log/voice_input.log")
+        })
+        .map_err(|e| eprintln!("warning: cannot open log/voice_input.log: {e}"))
+        .ok();
+    let file_opened = file.is_some();
+
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"))
         .format_timestamp_millis()
+        .target(env_logger::Target::Pipe(Box::new(TeeWriter { file })))
         .init();
+
+    if file_opened {
+        log::info!("---- voice_input {} started ----", env!("CARGO_PKG_VERSION"));
+    }
+}
+
+/// A GUI-subsystem binary starts without a console; reattach to the
+/// parent's (if any) so --help / --set-api-key still talk to the terminal.
+#[cfg(windows)]
+fn attach_parent_console() {
+    use windows::Win32::System::Console::{AttachConsole, ATTACH_PARENT_PROCESS};
+    unsafe {
+        let _ = AttachConsole(ATTACH_PARENT_PROCESS);
+    }
+}
+
+/// A double-click starts in the exe's folder (e.g. target\release). Hop to
+/// the directory that holds config.toml (the exe's, or two levels up = the
+/// repo root) so config.toml and log/ resolve the same way however the app
+/// was launched. No-op when the working directory already has one.
+fn anchor_working_dir() {
+    if std::path::Path::new("config.toml").exists() {
+        return;
+    }
+    let Ok(exe) = std::env::current_exe() else {
+        return;
+    };
+    let Some(exe_dir) = exe.parent() else { return };
+    for dir in [exe_dir.to_path_buf(), exe_dir.join("..").join("..")] {
+        if dir.join("config.toml").exists() {
+            let _ = std::env::set_current_dir(&dir);
+            return;
+        }
+    }
+}
+
+fn main() {
+    #[cfg(windows)]
+    attach_parent_console();
+    anchor_working_dir();
+    init_logging();
 
     let args: Vec<String> = std::env::args().skip(1).collect();
     match args.first().map(String::as_str) {
         Some("--help" | "-h") => print!("{USAGE}"),
         Some("--version" | "-V") => println!("voice_input {}", env!("CARGO_PKG_VERSION")),
-        Some("--config-path") => match AppConfig::default_path() {
-            Some(p) => println!("{}", p.display()),
-            None => println!("(no config directory on this platform)"),
-        },
+        Some("--config-path") => {
+            let paths = AppConfig::candidate_paths();
+            if paths.is_empty() {
+                println!("(no config directory on this platform)");
+            }
+            for p in paths {
+                println!("{}", p.display());
+            }
+        }
         Some("--set-api-key") => set_api_key(),
         Some("--delete-api-key") => match KeyringStore.delete(OPENAI_ACCOUNT) {
             Ok(()) => println!("API key removed from the credential store."),

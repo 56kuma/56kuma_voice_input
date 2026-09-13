@@ -42,6 +42,23 @@ API キーの探索順は **OS Credential Store → 環境変数 `OPENAI_API_KEY
 
 ログは `RUST_LOG=debug voice_input`。API キー・録音データ・文字起こし本文はどのレベルでもログに出しません。
 録音はメモリ上だけで扱い、文字起こし後に破棄します。履歴は保存しません。
+実行ログは起動時のカレントディレクトリ配下の `log\voice_input.log` にも追記されます（git 管理外）。
+
+## 起動方法まとめ（Windows・最終形）
+
+Windows では GUI アプリとしてビルドされるため、ラッパー（PowerShell / vbs / nohup）は不要です。
+
+| やること | 方法 |
+|----------|------|
+| 起動 | `target\release\voice_input.exe` を実行（ダブルクリック可・コンソールは出ない） |
+| 停止 | カプセルをダブルクリック（または `taskkill /F /IM voice_input.exe`） |
+| サインイン時に自動起動 | `Win + R` → `shell:startup` に exe のショートカットを置く（解除は削除） |
+
+補足:
+
+- `config.toml` と `log\` は「カレント → exe の場所 → exe の 2 つ上（= リポジトリ直下）」の順で解決されるため、どこから起動しても同じ場所が使われます。
+- CLI（`--help` / `--set-api-key` など）は従来どおりターミナルから使えます。
+- 二重起動は不可（2 つ目は `!` 表示のまま）。起動に失敗したら `log\voice_input.log` を確認。
 
 ## プラットフォーム別の注意
 

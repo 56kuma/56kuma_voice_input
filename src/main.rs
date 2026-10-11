@@ -18,11 +18,12 @@ use voice_input::app::controller::{Controller, Dependencies};
 use voice_input::app::state::State;
 use voice_input::audio::recorder::{CpalRecorder, LevelMeter};
 use voice_input::config::credentials::{
-    resolve_api_key, CredentialStore, KeyringStore, OPENAI_ACCOUNT,
+    resolve_api_key, CredentialStore, KeySource, KeyringStore, GROQ_KEY, OPENAI_KEY, XAI_KEY,
 };
 use voice_input::config::AppConfig;
 use voice_input::hotkey::{Debouncer, Hotkey};
 use voice_input::transcription::openai::OpenAiTranscriptionProvider;
+use voice_input::transcription::xai::XaiTranscriptionProvider;
 use voice_input::transcription::TranscriptionProvider;
 use voice_input::ui::overlay::{self, OverlayHandle, OverlayModel};
 use voice_input::ui::Overlay;
@@ -32,9 +33,11 @@ voice_input — press Ctrl+Space, speak, press Ctrl+Space again.
 
 USAGE:
     voice_input                 run in the background with the overlay
-    voice_input --set-api-key   read an API key from stdin and store it in
-                                the OS credential store
-    voice_input --delete-api-key
+    voice_input --set-api-key [--provider openai|groq|xai]
+                                read an API key from stdin and store it in
+                                the OS credential store (default provider:
+                                the one in config.toml)
+    voice_input --delete-api-key [--provider openai|groq|xai]
     voice_input --config-path   print where config.toml is looked for,
                                 in priority order (first match wins)
     voice_input --help | --version
@@ -85,7 +88,10 @@ fn init_logging() {
         .init();
 
     if file_opened {
-        log::info!("---- voice_input {} started ----", env!("CARGO_PKG_VERSION"));
+        log::info!(
+            "---- voice_input {} started ----",
+            env!("CARGO_PKG_VERSION")
+        );
     }
 }
 
@@ -138,8 +144,8 @@ fn main() {
                 println!("{}", p.display());
             }
         }
-        Some("--set-api-key") => set_api_key(),
-        Some("--delete-api-key") => match KeyringStore.delete(OPENAI_ACCOUNT) {
+        Some("--set-api-key") => set_api_key(key_source_arg(&args[1..])),
+        Some("--delete-api-key") => match KeyringStore.delete(key_source_arg(&args[1..]).account) {
             Ok(()) => println!("API key removed from the credential store."),
             Err(e) => {
                 eprintln!("error: {e}");
@@ -154,19 +160,38 @@ fn main() {
     }
 }
 
-fn set_api_key() {
+/// `--provider NAME` if given, else the provider in config.toml.
+fn key_source_arg(rest: &[String]) -> KeySource {
+    let provider = match rest {
+        [] => AppConfig::load().unwrap_or_default().provider,
+        [flag, name] if flag == "--provider" => name.clone(),
+        _ => {
+            eprintln!("usage: --set-api-key | --delete-api-key [--provider openai|groq|xai]");
+            std::process::exit(2);
+        }
+    };
+    KeySource::for_provider(&provider).unwrap_or_else(|| {
+        eprintln!("error: unknown provider {provider:?} (expected openai, groq or xai)");
+        std::process::exit(2);
+    })
+}
+
+fn set_api_key(source: KeySource) {
     eprintln!("Paste the API key and press Enter (input is not echoed to logs):");
     let mut key = String::new();
     if std::io::stdin().read_line(&mut key).is_err() || key.trim().is_empty() {
         eprintln!("error: no key given");
         std::process::exit(1);
     }
-    match KeyringStore.set(OPENAI_ACCOUNT, key.trim()) {
-        Ok(()) => println!("API key stored in the OS credential store."),
+    match KeyringStore.set(source.account, key.trim()) {
+        Ok(()) => println!(
+            "API key stored in the OS credential store ({}).",
+            source.account
+        ),
         Err(e) => {
             eprintln!(
                 "error: {e}\nFallback: set the {} environment variable.",
-                voice_input::config::credentials::OPENAI_ENV_VAR
+                source.env_var
             );
             std::process::exit(1);
         }
@@ -187,29 +212,42 @@ fn run() {
         Hotkey::default_toggle()
     });
 
+    let provider_name = match KeySource::for_provider(&config.provider) {
+        Some(_) => config.provider.as_str(),
+        None => {
+            log::error!("unknown provider {:?}; using openai", config.provider);
+            "openai"
+        }
+    };
+    let (source, config_key) = match provider_name {
+        "groq" => (GROQ_KEY, config.groq.api_key.as_deref()),
+        "xai" => (XAI_KEY, config.xai.api_key.as_deref()),
+        _ => (OPENAI_KEY, config.openai.api_key.as_deref()),
+    };
     let api_key = resolve_api_key(
         &KeyringStore,
+        source,
         |name| std::env::var(name).ok(),
-        config.openai.api_key.as_deref(),
+        config_key,
     );
     if api_key.is_none() {
         log::error!(
-            "no API key: run `voice_input --set-api-key` or set OPENAI_API_KEY; \
-             transcription will fail until then"
+            "no {provider_name} API key: run `voice_input --set-api-key --provider {provider_name}` \
+             or set {}; transcription will fail until then",
+            source.env_var
         );
     }
-    let provider: Arc<dyn TranscriptionProvider> = match config.provider.as_str() {
-        "openai" => Arc::new(OpenAiTranscriptionProvider::new(
+    log::info!("transcription provider: {provider_name}");
+    let provider: Arc<dyn TranscriptionProvider> = match provider_name {
+        "groq" => Arc::new(OpenAiTranscriptionProvider::new(
+            api_key,
+            config.groq_config(),
+        )),
+        "xai" => Arc::new(XaiTranscriptionProvider::new(api_key, config.xai_config())),
+        _ => Arc::new(OpenAiTranscriptionProvider::new(
             api_key,
             config.openai_config(),
         )),
-        other => {
-            log::error!("unknown provider {other:?}; using openai");
-            Arc::new(OpenAiTranscriptionProvider::new(
-                api_key,
-                config.openai_config(),
-            ))
-        }
     };
 
     let level = LevelMeter::default();

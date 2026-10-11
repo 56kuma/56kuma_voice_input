@@ -1,5 +1,6 @@
-//! X11: prefers `xdotool type` (types real key events, works in terminals),
-//! otherwise clipboard + Ctrl+V sent through the XTEST extension.
+//! X11: prefers `xdotool type` (types real key events, works in terminals)
+//! for ASCII text; non-ASCII text (Japanese, …) and a missing xdotool go
+//! through clipboard + Ctrl+V sent with the XTEST extension.
 
 use std::process::{Command, Stdio};
 
@@ -30,13 +31,36 @@ impl PasteKeySender for X11TextInjector {
     }
 }
 
+/// `xdotool type` types a non-ASCII character by temporarily remapping a
+/// spare keycode; older builds (Ubuntu 20.04 ships 3.20160805) race on that
+/// remap and repeat earlier characters ("新新新新…"). Only ASCII is safe.
+fn should_type_with_xdotool(text: &str) -> bool {
+    text.is_ascii()
+}
+
 impl TextInjector for X11TextInjector {
     fn insert(&self, text: &str) -> Result<(), InputError> {
-        if let Some(result) = xdotool_type(text) {
-            return result;
+        if should_type_with_xdotool(text) {
+            if let Some(result) = xdotool_type(text) {
+                return result;
+            }
+            log::debug!("xdotool not found; using clipboard + XTEST Ctrl+V");
+        } else {
+            log::debug!("non-ASCII text; using clipboard + XTEST Ctrl+V");
         }
-        log::debug!("xdotool not found; using clipboard + XTEST Ctrl+V");
         paste_via_clipboard(text, self)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn only_ascii_text_is_typed_with_xdotool() {
+        assert!(should_type_with_xdotool("hello, world 123"));
+        assert!(!should_type_with_xdotool("新しいプロジェクト"));
+        assert!(!should_type_with_xdotool("test です"));
     }
 }
 
@@ -80,7 +104,12 @@ mod xtest {
             conn.xtest_fake_input(kind, code, x11rb::CURRENT_TIME, x11rb::NONE, 0, 0, 0)
                 .map_err(|e| e.to_string())?;
         }
-        conn.flush().map_err(|e| e.to_string())?;
+        // A round trip (like XSync) before the connection drops: closing
+        // right after flush lets the server discard the fake key events.
+        conn.get_input_focus()
+            .map_err(|e| e.to_string())?
+            .reply()
+            .map_err(|e| e.to_string())?;
         Ok(())
     }
 }

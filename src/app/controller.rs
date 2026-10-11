@@ -134,6 +134,7 @@ impl Controller {
                     let event = match provider.transcribe(audio).await {
                         Ok(text) => Event::TranscriptionSucceeded(text),
                         Err(err) => {
+                            log::error!("{:?} failed: {}", Stage::Transcription, err);
                             Event::Failed(Failure::new(Stage::Transcription, err.to_string()))
                         }
                     };

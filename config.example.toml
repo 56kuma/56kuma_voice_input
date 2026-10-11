@@ -4,7 +4,7 @@
 # Every field is optional; these are the defaults.
 
 hotkey = "Ctrl+Space"      # toggle: press to start, press again to stop
-provider = "openai"        # only provider in the MVP
+provider = "openai"        # "openai", "groq" or "xai" (Grok)
 error_display_secs = 3     # how long "!" stays before returning to idle
 
 [audio]
@@ -17,6 +17,24 @@ base_url = "https://api.openai.com/v1"
 timeout_secs = 30
 # api_key = "sk-..."       # LAST resort. Prefer `voice_input --set-api-key`
 #                          # (OS credential store) or OPENAI_API_KEY.
+
+[groq]                     # used when provider = "groq"
+model = "whisper-large-v3-turbo"   # or "whisper-large-v3"
+# language = "ja"          # ISO-639-1; omit for auto-detect
+base_url = "https://api.groq.com/openai/v1"
+timeout_secs = 30
+# api_key = "gsk_..."      # LAST resort. Prefer
+#                          # `voice_input --set-api-key --provider groq`
+#                          # (OS credential store) or GROQ_API_KEY.
+
+[xai]                      # used when provider = "xai"
+model = "grok-voice-transcribe-2.0"
+# language = "ja"          # omit for auto-detect
+base_url = "https://api.x.ai/v1"
+timeout_secs = 30
+# api_key = "xai-..."      # LAST resort. Prefer
+#                          # `voice_input --set-api-key --provider xai`
+#                          # (OS credential store) or XAI_API_KEY.
 
 [overlay]
 position = "top-center"    # top-center | top-left | top-right

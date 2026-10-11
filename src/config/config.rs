@@ -9,12 +9,14 @@ use serde::{Deserialize, Serialize};
 pub struct AppConfig {
     /// Toggle hotkey, e.g. `"Ctrl+Space"`. The MVP default is fixed.
     pub hotkey: String,
-    /// Which `TranscriptionProvider` to use. MVP: `"openai"` only.
+    /// Which `TranscriptionProvider` to use: `"openai"`, `"groq"` or `"xai"`.
     pub provider: String,
     /// Seconds the Error state stays visible before returning to Idle.
     pub error_display_secs: u64,
     pub audio: AudioConfig,
     pub openai: OpenAiSection,
+    pub groq: GroqSection,
+    pub xai: XaiSection,
     pub overlay: OverlayConfig,
 }
 
@@ -28,6 +30,29 @@ pub struct AudioConfig {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct OpenAiSection {
+    pub model: String,
+    pub language: Option<String>,
+    pub base_url: String,
+    pub timeout_secs: u64,
+    /// Lowest-priority key source. Prefer the OS credential store.
+    pub api_key: Option<String>,
+}
+
+/// Same fields as `[openai]`; only the defaults point at Groq.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct GroqSection {
+    pub model: String,
+    pub language: Option<String>,
+    pub base_url: String,
+    pub timeout_secs: u64,
+    /// Lowest-priority key source. Prefer the OS credential store.
+    pub api_key: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct XaiSection {
     pub model: String,
     pub language: Option<String>,
     pub base_url: String,
@@ -63,6 +88,8 @@ impl Default for AppConfig {
             error_display_secs: 3,
             audio: AudioConfig::default(),
             openai: OpenAiSection::default(),
+            groq: GroqSection::default(),
+            xai: XaiSection::default(),
             overlay: OverlayConfig::default(),
         }
     }
@@ -82,6 +109,30 @@ impl Default for OpenAiSection {
             model: crate::transcription::openai::DEFAULT_MODEL.to_owned(),
             language: None,
             base_url: crate::transcription::openai::DEFAULT_BASE_URL.to_owned(),
+            timeout_secs: 30,
+            api_key: None,
+        }
+    }
+}
+
+impl Default for GroqSection {
+    fn default() -> Self {
+        Self {
+            model: crate::transcription::groq::DEFAULT_MODEL.to_owned(),
+            language: None,
+            base_url: crate::transcription::groq::DEFAULT_BASE_URL.to_owned(),
+            timeout_secs: 30,
+            api_key: None,
+        }
+    }
+}
+
+impl Default for XaiSection {
+    fn default() -> Self {
+        Self {
+            model: crate::transcription::xai::DEFAULT_MODEL.to_owned(),
+            language: None,
+            base_url: crate::transcription::xai::DEFAULT_BASE_URL.to_owned(),
             timeout_secs: 30,
             api_key: None,
         }
@@ -145,6 +196,24 @@ impl AppConfig {
             timeout_secs: self.openai.timeout_secs,
         }
     }
+
+    pub fn groq_config(&self) -> crate::transcription::openai::OpenAiConfig {
+        crate::transcription::openai::OpenAiConfig {
+            base_url: self.groq.base_url.clone(),
+            model: self.groq.model.clone(),
+            language: self.groq.language.clone(),
+            timeout_secs: self.groq.timeout_secs,
+        }
+    }
+
+    pub fn xai_config(&self) -> crate::transcription::xai::XaiConfig {
+        crate::transcription::xai::XaiConfig {
+            base_url: self.xai.base_url.clone(),
+            model: self.xai.model.clone(),
+            language: self.xai.language.clone(),
+            timeout_secs: self.xai.timeout_secs,
+        }
+    }
 }
 
 #[cfg(test)]
@@ -182,6 +251,45 @@ mod tests {
         assert_eq!(cfg.openai.language.as_deref(), Some("ja"));
         assert_eq!(cfg.hotkey, "Ctrl+Space");
         assert_eq!(cfg.openai.base_url, AppConfig::default().openai.base_url);
+    }
+
+    #[test]
+    fn groq_section_defaults_to_groqs_openai_compatible_endpoint() {
+        let cfg = AppConfig::from_toml(
+            r#"
+            provider = "groq"
+            [groq]
+            language = "ja"
+            "#,
+        )
+        .unwrap();
+
+        assert_eq!(cfg.provider, "groq");
+        let groq = cfg.groq_config();
+        assert_eq!(groq.language.as_deref(), Some("ja"));
+        assert_eq!(groq.model, crate::transcription::groq::DEFAULT_MODEL);
+        assert_eq!(
+            groq.endpoint(),
+            "https://api.groq.com/openai/v1/audio/transcriptions"
+        );
+    }
+
+    #[test]
+    fn xai_section_selects_the_xai_provider_settings() {
+        let cfg = AppConfig::from_toml(
+            r#"
+            provider = "xai"
+            [xai]
+            language = "ja"
+            "#,
+        )
+        .unwrap();
+
+        assert_eq!(cfg.provider, "xai");
+        let xai = cfg.xai_config();
+        assert_eq!(xai.language.as_deref(), Some("ja"));
+        assert_eq!(xai.model, crate::transcription::xai::DEFAULT_MODEL);
+        assert_eq!(xai.endpoint(), "https://api.x.ai/v1/stt");
     }
 
     #[test]

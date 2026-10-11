@@ -37,6 +37,51 @@ cargo build --release          # Linux は事前に: sudo apt install libasound2
 ```
 
 API キーの探索順は **OS Credential Store → 環境変数 `OPENAI_API_KEY` → config.toml** です。
+
+### Groq を使う場合
+
+Groq は OpenAI 互換の API なので、OpenAI と同じ仕組みで動きます。キーは OpenAI・xAI とは別の場所に保存されます。
+
+1. [console.groq.com](https://console.groq.com/keys) で API キーを作成します（`gsk_` で始まります）。
+2. キーを OS の資格情報ストアに保存します（貼り付けて Enter）。
+   ```bash
+   ./target/release/voice_input --set-api-key --provider groq
+   ```
+3. `config.toml`（場所は `voice_input --config-path` で確認。Linux は通常 `~/.config/voice_input/config.toml`）に次を書きます。
+   ```toml
+   provider = "groq"
+   [groq]
+   language = "ja"                  # 省略時は自動判定。日本語なら指定推奨
+   # model = "whisper-large-v3"     # 既定は whisper-large-v3-turbo（速い）。精度重視なら large-v3
+   ```
+4. 起動して、ログに `transcription provider: groq` と `API key: OS credential store` が出れば設定完了です。
+   ```bash
+   ./target/release/voice_input
+   ```
+
+| 項目 | 値 |
+|------|----|
+| 送信先 | `https://api.groq.com/openai/v1/audio/transcriptions`（`[groq] base_url` で変更可） |
+| キーの探索順 | OS Credential Store（`groq_api_key`）→ 環境変数 `GROQ_API_KEY` → config.toml の `[groq] api_key` |
+| キーの削除 | `voice_input --delete-api-key --provider groq` |
+
+うまくいかないときは `log/voice_input.log` の `Transcription failed: ...` の行を確認してください（例: `API key rejected` ならキーの誤り、`rate limit or quota exceeded` なら利用上限）。
+
+### xAI（Grok）を使う場合
+
+`config.toml` で `provider = "xai"` を指定し、xAI のキーを保存します（OpenAI のキーとは別に保存されます）。
+
+```bash
+./target/release/voice_input --set-api-key --provider xai
+```
+
+```toml
+provider = "xai"
+[xai]
+language = "ja"   # 省略時は自動判定
+```
+
+キーの探索順は OpenAI と同じで、環境変数は `XAI_API_KEY`、config.toml は `[xai] api_key` です。
 設定ファイルの場所は `voice_input --config-path` で表示されます。項目は
 [`config.example.toml`](config.example.toml) を参照してください。
 
@@ -67,11 +112,13 @@ Windows では GUI アプリとしてビルドされるため、ラッパー（P
 - 追加インストールは不要です。
 
 ### Ubuntu (X11)
-- ホットキー: `XGrabKey`。文字入力: `xdotool` があればそれで入力（ターミナルでも動作）、なければクリップボード + XTEST Ctrl+V。
+- ホットキー: `XGrabKey`。文字入力: 日本語など非 ASCII を含む文はクリップボード + XTEST Ctrl+V（IME の入力モードに左右されません。ターミナルでは貼り付けられません）。ASCII のみの文は `xdotool` があればそれで入力（ターミナルでも動作。ただし IME がかなモードだと変換されます）。
+  - Ubuntu 20.04 の xdotool（3.20160805）は非 ASCII を打つと文字が繰り返される不具合があるため、非 ASCII には使いません。
   ```bash
   sudo apt install xdotool
   ```
 - **IBus / Fcitx の既定のキー切替が Ctrl+Space の場合は競合します。** どちらかを変更してください（`hotkey = "Ctrl+Alt+Space"` など）。
+  他の常駐アプリ（音声入力ツールなど）が同じキーを使っていても起動直後に落ちます（ログに `BadAccess`）。
 
 ### Ubuntu (Wayland / GNOME)
 - ホットキー: XDG Desktop Portal の `GlobalShortcuts` を使います。初回起動時にショートカットの確認ダイアログが出ます（GNOME 46 以降 / KDE 6）。
@@ -87,7 +134,7 @@ Windows では GUI アプリとしてビルドされるため、ラッパー（P
 src/
   app/          state.rs（純粋な状態遷移）  controller.rs（Effect の実行）
   audio/        audio_data.rs（純粋な変換）  recorder.rs（cpal）
-  transcription/provider.rs（trait）        openai.rs
+  transcription/provider.rs（trait）        openai.rs  groq.rs  xai.rs
   hotkey/       mod.rs（parse / debounce） windows.rs  linux.rs
   input/        mod.rs（trait）  windows.rs  x11.rs  wayland.rs  clipboard.rs
   ui/           state_view.rs（純粋な表示ロジック）  overlay.rs（eframe）

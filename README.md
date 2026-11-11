@@ -145,6 +145,7 @@ Windows では GUI アプリとしてビルドされるため、ラッパー（P
 
 ### Ubuntu (Wayland / GNOME)
 - ホットキー: XDG Desktop Portal の `GlobalShortcuts` を使います。初回起動時にショートカットの確認ダイアログが出ます（GNOME 46 以降 / KDE 6）。
+  - xdg-desktop-portal 1.19 以降（Ubuntu 26.04 など）はアプリ ID の登録が必須のため、起動時に `~/.local/share/applications/io.github.kuma56.VoiceInput.desktop`（メニュー非表示）を自動で作成し、`io.github.kuma56.VoiceInput` として登録します。これが無いと `An app id is required` で失敗します。
 - 文字入力: Wayland は他アプリへの入力注入を許可しないため、`wtype`（wlroots 系）→ `ydotool`（要 `ydotoold`）の順に試し、どちらも無ければ **クリップボードにコピーした上で Error 表示** にします（Ctrl+V で貼り付けできます）。
   ```bash
   sudo apt install ydotool && sudo systemctl enable --now ydotool

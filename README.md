@@ -82,6 +82,29 @@ language = "ja"   # 省略時は自動判定
 ```
 
 キーの探索順は OpenAI と同じで、環境変数は `XAI_API_KEY`、config.toml は `[xai] api_key` です。
+
+### ElevenLabs（Scribe v3）を使う場合
+
+1. [ElevenLabs の API キー画面](https://elevenlabs.io/app/settings/api-keys) でキーを作成します（Speech to Text の権限を付けてください）。
+2. キーを OS の資格情報ストアに保存します（貼り付けて Enter）。
+   ```bash
+   ./target/release/voice_input --set-api-key --provider elevenlabs
+   ```
+3. `config.toml` に次を書きます。
+   ```toml
+   provider = "elevenlabs"
+   [elevenlabs]
+   language = "ja"          # language_code として送信。省略時は自動判定
+   # model = "scribe_v2"    # 既定は scribe_v3
+   ```
+4. 起動して、ログに `transcription provider: elevenlabs` が出れば設定完了です。
+
+| 項目 | 値 |
+|------|----|
+| 送信先 | `https://api.elevenlabs.io/v1/speech-to-text`（`[elevenlabs] base_url` で変更可） |
+| 認証 | `xi-api-key` ヘッダー |
+| キーの探索順 | OS Credential Store（`elevenlabs_api_key`）→ 環境変数 `ELEVENLABS_API_KEY` → config.toml の `[elevenlabs] api_key` |
+| その他 | `tag_audio_events=false` を送り、「(笑い)」のような音響タグが入力されないようにしています |
 設定ファイルの場所は `voice_input --config-path` で表示されます。項目は
 [`config.example.toml`](config.example.toml) を参照してください。
 
@@ -134,7 +157,7 @@ Windows では GUI アプリとしてビルドされるため、ラッパー（P
 src/
   app/          state.rs（純粋な状態遷移）  controller.rs（Effect の実行）
   audio/        audio_data.rs（純粋な変換）  recorder.rs（cpal）
-  transcription/provider.rs（trait）        openai.rs  groq.rs  xai.rs
+  transcription/provider.rs（trait）        openai.rs  groq.rs  xai.rs  elevenlabs.rs
   hotkey/       mod.rs（parse / debounce） windows.rs  linux.rs
   input/        mod.rs（trait）  windows.rs  x11.rs  wayland.rs  clipboard.rs
   ui/           state_view.rs（純粋な表示ロジック）  overlay.rs（eframe）

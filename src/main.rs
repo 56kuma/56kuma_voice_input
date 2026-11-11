@@ -18,10 +18,12 @@ use voice_input::app::controller::{Controller, Dependencies};
 use voice_input::app::state::State;
 use voice_input::audio::recorder::{CpalRecorder, LevelMeter};
 use voice_input::config::credentials::{
-    resolve_api_key, CredentialStore, KeySource, KeyringStore, GROQ_KEY, OPENAI_KEY, XAI_KEY,
+    resolve_api_key, CredentialStore, KeySource, KeyringStore, ELEVENLABS_KEY, GROQ_KEY,
+    OPENAI_KEY, XAI_KEY,
 };
 use voice_input::config::AppConfig;
 use voice_input::hotkey::{Debouncer, Hotkey};
+use voice_input::transcription::elevenlabs::ElevenLabsTranscriptionProvider;
 use voice_input::transcription::openai::OpenAiTranscriptionProvider;
 use voice_input::transcription::xai::XaiTranscriptionProvider;
 use voice_input::transcription::TranscriptionProvider;
@@ -33,11 +35,11 @@ voice_input — press Ctrl+Space, speak, press Ctrl+Space again.
 
 USAGE:
     voice_input                 run in the background with the overlay
-    voice_input --set-api-key [--provider openai|groq|xai]
+    voice_input --set-api-key [--provider openai|groq|xai|elevenlabs]
                                 read an API key from stdin and store it in
                                 the OS credential store (default provider:
                                 the one in config.toml)
-    voice_input --delete-api-key [--provider openai|groq|xai]
+    voice_input --delete-api-key [--provider openai|groq|xai|elevenlabs]
     voice_input --config-path   print where config.toml is looked for,
                                 in priority order (first match wins)
     voice_input --help | --version
@@ -166,12 +168,16 @@ fn key_source_arg(rest: &[String]) -> KeySource {
         [] => AppConfig::load().unwrap_or_default().provider,
         [flag, name] if flag == "--provider" => name.clone(),
         _ => {
-            eprintln!("usage: --set-api-key | --delete-api-key [--provider openai|groq|xai]");
+            eprintln!(
+                "usage: --set-api-key | --delete-api-key [--provider openai|groq|xai|elevenlabs]"
+            );
             std::process::exit(2);
         }
     };
     KeySource::for_provider(&provider).unwrap_or_else(|| {
-        eprintln!("error: unknown provider {provider:?} (expected openai, groq or xai)");
+        eprintln!(
+            "error: unknown provider {provider:?} (expected openai, groq, xai or elevenlabs)"
+        );
         std::process::exit(2);
     })
 }
@@ -222,6 +228,7 @@ fn run() {
     let (source, config_key) = match provider_name {
         "groq" => (GROQ_KEY, config.groq.api_key.as_deref()),
         "xai" => (XAI_KEY, config.xai.api_key.as_deref()),
+        "elevenlabs" => (ELEVENLABS_KEY, config.elevenlabs.api_key.as_deref()),
         _ => (OPENAI_KEY, config.openai.api_key.as_deref()),
     };
     let api_key = resolve_api_key(
@@ -244,6 +251,10 @@ fn run() {
             config.groq_config(),
         )),
         "xai" => Arc::new(XaiTranscriptionProvider::new(api_key, config.xai_config())),
+        "elevenlabs" => Arc::new(ElevenLabsTranscriptionProvider::new(
+            api_key,
+            config.elevenlabs_config(),
+        )),
         _ => Arc::new(OpenAiTranscriptionProvider::new(
             api_key,
             config.openai_config(),

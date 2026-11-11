@@ -70,14 +70,24 @@ struct SuccessBody {
     text: String,
 }
 
-/// `{"error": {"message": "..."}}` (OpenAI) or `{"error": "..."}` (xAI).
+/// `{"error": {"message": "..."}}` (OpenAI), `{"error": "..."}` (xAI), or
+/// ElevenLabs' `{"detail": {"message": "..."}}` / `{"detail": "..."}` /
+/// `{"detail": [{"msg": "..."}]}` (validation errors).
 fn error_message(body: &str) -> Option<String> {
     let value: serde_json::Value = serde_json::from_str(body).ok()?;
-    let error = value.get("error")?;
-    error
+    if let Some(error) = value.get("error") {
+        return error
+            .get("message")
+            .and_then(|m| m.as_str())
+            .or_else(|| error.as_str())
+            .map(str::to_owned);
+    }
+    let detail = value.get("detail")?;
+    detail
         .get("message")
+        .or_else(|| detail.get(0).and_then(|d| d.get("msg")))
         .and_then(|m| m.as_str())
-        .or_else(|| error.as_str())
+        .or_else(|| detail.as_str())
         .map(str::to_owned)
 }
 
@@ -108,11 +118,21 @@ impl TranscriptionProvider for OpenAiTranscriptionProvider {
             &self.client,
             &self.config.endpoint(),
             self.api_key.as_deref(),
+            Auth::Bearer,
             self.config.request_fields(),
             audio,
         )
         .await
     }
+}
+
+/// How the API key is attached to a request.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Auth {
+    /// `Authorization: Bearer <key>` (OpenAI, Groq, xAI).
+    Bearer,
+    /// `<name>: <key>` (ElevenLabs' `xi-api-key`).
+    Header(&'static str),
 }
 
 /// The one HTTP call shared by every multipart speech-to-text API: option
@@ -122,6 +142,7 @@ pub(crate) async fn post_transcription(
     client: &reqwest::Client,
     endpoint: &str,
     api_key: Option<&str>,
+    auth: Auth,
     fields: Vec<(&'static str, String)>,
     audio: AudioData,
 ) -> Result<String, TranscriptionError> {
@@ -145,9 +166,17 @@ pub(crate) async fn post_transcription(
             .map_err(|e| TranscriptionError::InvalidResponse(e.to_string()))?,
     );
 
-    let response = client
-        .post(endpoint)
-        .bearer_auth(api_key)
+    let request = match auth {
+        Auth::Bearer => client.post(endpoint).bearer_auth(api_key),
+        Auth::Header(name) => {
+            // A key with characters a header cannot carry is a bad key.
+            let mut value = reqwest::header::HeaderValue::from_str(api_key)
+                .map_err(|_| TranscriptionError::Unauthorized)?;
+            value.set_sensitive(true); // like bearer_auth: never in Debug output
+            client.post(endpoint).header(name, value)
+        }
+    };
+    let response = request
         .multipart(form)
         .send()
         .await
@@ -271,6 +300,37 @@ mod tests {
         );
     }
 
+    #[test]
+    fn elevenlabs_detail_errors_are_used_as_the_message() {
+        assert_eq!(
+            parse_response(
+                400,
+                r#"{"detail":{"status":"invalid_model","message":"model not found"}}"#
+            ),
+            Err(TranscriptionError::Api {
+                status: 400,
+                message: "model not found".into()
+            })
+        );
+        assert_eq!(
+            parse_response(
+                422,
+                r#"{"detail":[{"loc":["body","file"],"msg":"field required","type":"missing"}]}"#
+            ),
+            Err(TranscriptionError::Api {
+                status: 422,
+                message: "field required".into()
+            })
+        );
+        assert_eq!(
+            parse_response(400, r#"{"detail":"bad audio"}"#),
+            Err(TranscriptionError::Api {
+                status: 400,
+                message: "bad audio".into()
+            })
+        );
+    }
+
     #[tokio::test]
     async fn the_audio_file_is_sent_after_every_option_field() {
         use std::io::{Read, Write};
@@ -303,6 +363,7 @@ mod tests {
             &reqwest::Client::new(),
             &format!("http://{addr}/stt"),
             Some("test-key"),
+            Auth::Bearer,
             vec![("model", "m".into()), ("language", "ja".into())],
             AudioData::new(16_000, vec![0; 160]),
         )

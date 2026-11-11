@@ -15,6 +15,8 @@ pub const GROQ_ACCOUNT: &str = "groq_api_key";
 pub const GROQ_ENV_VAR: &str = "GROQ_API_KEY";
 pub const XAI_ACCOUNT: &str = "xai_api_key";
 pub const XAI_ENV_VAR: &str = "XAI_API_KEY";
+pub const ELEVENLABS_ACCOUNT: &str = "elevenlabs_api_key";
+pub const ELEVENLABS_ENV_VAR: &str = "ELEVENLABS_API_KEY";
 
 /// Where one provider's key lives: credential-store account + env var.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -35,6 +37,10 @@ pub const XAI_KEY: KeySource = KeySource {
     account: XAI_ACCOUNT,
     env_var: XAI_ENV_VAR,
 };
+pub const ELEVENLABS_KEY: KeySource = KeySource {
+    account: ELEVENLABS_ACCOUNT,
+    env_var: ELEVENLABS_ENV_VAR,
+};
 
 impl KeySource {
     /// The key source for a `provider` name from config.toml.
@@ -43,6 +49,7 @@ impl KeySource {
             "openai" => Some(OPENAI_KEY),
             "groq" => Some(GROQ_KEY),
             "xai" => Some(XAI_KEY),
+            "elevenlabs" => Some(ELEVENLABS_KEY),
             _ => None,
         }
     }
@@ -189,6 +196,7 @@ mod tests {
         assert_eq!(KeySource::for_provider("openai"), Some(OPENAI_KEY));
         assert_eq!(KeySource::for_provider("groq"), Some(GROQ_KEY));
         assert_eq!(KeySource::for_provider("xai"), Some(XAI_KEY));
+        assert_eq!(KeySource::for_provider("elevenlabs"), Some(ELEVENLABS_KEY));
         assert_eq!(KeySource::for_provider("nope"), None);
     }
 

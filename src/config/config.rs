@@ -9,7 +9,8 @@ use serde::{Deserialize, Serialize};
 pub struct AppConfig {
     /// Toggle hotkey, e.g. `"Ctrl+Space"`. The MVP default is fixed.
     pub hotkey: String,
-    /// Which `TranscriptionProvider` to use: `"openai"`, `"groq"` or `"xai"`.
+    /// Which `TranscriptionProvider` to use: `"openai"`, `"groq"`, `"xai"` or
+    /// `"elevenlabs"`.
     pub provider: String,
     /// Seconds the Error state stays visible before returning to Idle.
     pub error_display_secs: u64,
@@ -17,6 +18,7 @@ pub struct AppConfig {
     pub openai: OpenAiSection,
     pub groq: GroqSection,
     pub xai: XaiSection,
+    pub elevenlabs: ElevenLabsSection,
     pub overlay: OverlayConfig,
 }
 
@@ -63,6 +65,19 @@ pub struct XaiSection {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
+pub struct ElevenLabsSection {
+    /// Sent as `model_id`, e.g. `"scribe_v3"`.
+    pub model: String,
+    /// Sent as `language_code`.
+    pub language: Option<String>,
+    pub base_url: String,
+    pub timeout_secs: u64,
+    /// Lowest-priority key source. Prefer the OS credential store.
+    pub api_key: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
 pub struct OverlayConfig {
     /// `"top-center"` (default), `"top-left"`, `"top-right"`.
     pub position: String,
@@ -90,6 +105,7 @@ impl Default for AppConfig {
             openai: OpenAiSection::default(),
             groq: GroqSection::default(),
             xai: XaiSection::default(),
+            elevenlabs: ElevenLabsSection::default(),
             overlay: OverlayConfig::default(),
         }
     }
@@ -133,6 +149,18 @@ impl Default for XaiSection {
             model: crate::transcription::xai::DEFAULT_MODEL.to_owned(),
             language: None,
             base_url: crate::transcription::xai::DEFAULT_BASE_URL.to_owned(),
+            timeout_secs: 30,
+            api_key: None,
+        }
+    }
+}
+
+impl Default for ElevenLabsSection {
+    fn default() -> Self {
+        Self {
+            model: crate::transcription::elevenlabs::DEFAULT_MODEL.to_owned(),
+            language: None,
+            base_url: crate::transcription::elevenlabs::DEFAULT_BASE_URL.to_owned(),
             timeout_secs: 30,
             api_key: None,
         }
@@ -214,6 +242,15 @@ impl AppConfig {
             timeout_secs: self.xai.timeout_secs,
         }
     }
+
+    pub fn elevenlabs_config(&self) -> crate::transcription::elevenlabs::ElevenLabsConfig {
+        crate::transcription::elevenlabs::ElevenLabsConfig {
+            base_url: self.elevenlabs.base_url.clone(),
+            model: self.elevenlabs.model.clone(),
+            language: self.elevenlabs.language.clone(),
+            timeout_secs: self.elevenlabs.timeout_secs,
+        }
+    }
 }
 
 #[cfg(test)]
@@ -290,6 +327,24 @@ mod tests {
         assert_eq!(xai.language.as_deref(), Some("ja"));
         assert_eq!(xai.model, crate::transcription::xai::DEFAULT_MODEL);
         assert_eq!(xai.endpoint(), "https://api.x.ai/v1/stt");
+    }
+
+    #[test]
+    fn elevenlabs_section_defaults_to_scribe_v3() {
+        let cfg = AppConfig::from_toml(
+            r#"
+            provider = "elevenlabs"
+            [elevenlabs]
+            language = "ja"
+            "#,
+        )
+        .unwrap();
+
+        assert_eq!(cfg.provider, "elevenlabs");
+        let el = cfg.elevenlabs_config();
+        assert_eq!(el.language.as_deref(), Some("ja"));
+        assert_eq!(el.model, "scribe_v3");
+        assert_eq!(el.endpoint(), "https://api.elevenlabs.io/v1/speech-to-text");
     }
 
     #[test]

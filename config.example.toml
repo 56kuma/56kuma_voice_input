@@ -4,7 +4,7 @@
 # Every field is optional; these are the defaults.
 
 hotkey = "Ctrl+Space"      # toggle: press to start, press again to stop
-provider = "openai"        # "openai", "groq" or "xai" (Grok)
+provider = "openai"        # "openai", "groq", "xai" (Grok) or "elevenlabs"
 error_display_secs = 3     # how long "!" stays before returning to idle
 
 [audio]
@@ -35,6 +35,15 @@ timeout_secs = 30
 # api_key = "xai-..."      # LAST resort. Prefer
 #                          # `voice_input --set-api-key --provider xai`
 #                          # (OS credential store) or XAI_API_KEY.
+
+[elevenlabs]               # used when provider = "elevenlabs"
+model = "scribe_v3"        # sent as model_id; or "scribe_v2"
+# language = "ja"          # sent as language_code; omit for auto-detect
+base_url = "https://api.elevenlabs.io/v1"
+timeout_secs = 30
+# api_key = "sk_..."       # LAST resort. Prefer
+#                          # `voice_input --set-api-key --provider elevenlabs`
+#                          # (OS credential store) or ELEVENLABS_API_KEY.
 
 [overlay]
 position = "top-center"    # top-center | top-left | top-right

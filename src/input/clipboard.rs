@@ -14,13 +14,23 @@ pub trait PasteKeySender {
 const PASTE_SETTLE: Duration = Duration::from_millis(120);
 
 pub fn paste_via_clipboard(text: &str, keys: &dyn PasteKeySender) -> Result<(), InputError> {
+    paste_via_clipboard_settle(text, keys, PASTE_SETTLE)
+}
+
+/// Like `paste_via_clipboard`, waiting `settle` before restoring the old
+/// clipboard (asynchronous key injection such as uinput needs longer).
+pub fn paste_via_clipboard_settle(
+    text: &str,
+    keys: &dyn PasteKeySender,
+    settle: Duration,
+) -> Result<(), InputError> {
     let mut clipboard = arboard::Clipboard::new().map_err(|e| InputError::Failed(e.to_string()))?;
     let previous = clipboard.get_text().ok();
     clipboard
         .set_text(text.to_owned())
         .map_err(|e| InputError::Failed(e.to_string()))?;
     let result = keys.send_paste();
-    std::thread::sleep(PASTE_SETTLE);
+    std::thread::sleep(settle);
     match previous {
         Some(old) => {
             if let Err(e) = clipboard.set_text(old) {

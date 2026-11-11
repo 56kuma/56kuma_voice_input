@@ -29,6 +29,52 @@ pub(crate) fn portal_trigger(hotkey: &Hotkey) -> String {
     parts.join("+")
 }
 
+/// App ID announced to the portal. Recent xdg-desktop-portal (1.19+, e.g.
+/// Ubuntu 26.04) refuses `GlobalShortcuts` from an unsandboxed app with
+/// "An app id is required" unless it first registers one. Must be a valid
+/// D-Bus name (no element may start with a digit).
+pub const APP_ID: &str = "io.github.kuma56.VoiceInput";
+
+/// The `.desktop` entry the portal looks up for `APP_ID` ("App info not
+/// found" otherwise). Hidden from the app menu; `exec` is this binary.
+pub(crate) fn desktop_entry(exec: &std::path::Path) -> String {
+    let mut quoted = String::new();
+    for c in exec.to_string_lossy().chars() {
+        if matches!(c, '"' | '`' | '$' | '\\') {
+            quoted.push('\\');
+        }
+        quoted.push(c);
+    }
+    format!(
+        "[Desktop Entry]\n\
+         Type=Application\n\
+         Name=voice_input\n\
+         Comment=Press a hotkey, speak, and the text is typed\n\
+         Exec=\"{quoted}\"\n\
+         Terminal=false\n\
+         NoDisplay=true\n"
+    )
+}
+
+/// Writes `~/.local/share/applications/<APP_ID>.desktop` unless it is
+/// already up to date. Returns whether the file changed.
+fn ensure_desktop_entry() -> std::io::Result<bool> {
+    let exe = std::env::current_exe()?;
+    let dir = directories::BaseDirs::new()
+        .ok_or_else(|| std::io::Error::other("no home directory"))?
+        .data_dir()
+        .join("applications");
+    let path = dir.join(format!("{APP_ID}.desktop"));
+    let content = desktop_entry(&exe);
+    if std::fs::read_to_string(&path).ok().as_deref() == Some(content.as_str()) {
+        return Ok(false);
+    }
+    std::fs::create_dir_all(&dir)?;
+    std::fs::write(&path, content)?;
+    log::info!("installed {}", path.display());
+    Ok(true)
+}
+
 pub struct WaylandPortalHotkeyProvider;
 
 impl HotkeyProvider for WaylandPortalHotkeyProvider {
@@ -75,6 +121,24 @@ async fn portal_loop(
 
     const ID: &str = "toggle-voice-input";
 
+    // Must precede every other portal call on this D-Bus connection. Older
+    // portals lack the Registry interface; they don't need it, so go on.
+    // The portal resolves the app id through its .desktop file; a freshly
+    // written one needs a moment to be noticed by the portal's file monitor.
+    match ensure_desktop_entry() {
+        Ok(true) => tokio::time::sleep(std::time::Duration::from_millis(500)).await,
+        Ok(false) => {}
+        Err(e) => log::warn!("could not install the .desktop entry: {e}"),
+    }
+    match ashpd::AppID::try_from(APP_ID) {
+        Ok(app_id) => {
+            if let Err(e) = ashpd::register_host_app(app_id).await {
+                log::warn!("portal app id registration failed (continuing): {e}");
+            }
+        }
+        Err(e) => log::warn!("invalid portal app id {APP_ID:?}: {e}"),
+    }
+
     let setup = async {
         let proxy = GlobalShortcuts::new().await?;
         let session = proxy.create_session().await?;
@@ -109,4 +173,28 @@ async fn portal_loop(
         }
     }
     log::warn!("portal shortcut stream ended; hotkey no longer active");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_portal_app_id_is_a_valid_dbus_app_id() {
+        assert!(ashpd::AppID::try_from(APP_ID).is_ok());
+        // The repo name's leading digit would be rejected.
+        assert!(ashpd::AppID::try_from("io.github.56kuma.VoiceInput").is_err());
+    }
+
+    #[test]
+    fn desktop_entry_points_at_the_binary_and_escapes_the_exec_path() {
+        let entry = desktop_entry(std::path::Path::new("/opt/voice input/voice_input"));
+        assert!(entry.starts_with("[Desktop Entry]\n"));
+        assert!(entry.contains("Type=Application\n"));
+        assert!(entry.contains("Exec=\"/opt/voice input/voice_input\"\n"));
+        assert!(!entry.contains("Hidden=true")); // Hidden means "deleted"
+
+        let entry = desktop_entry(std::path::Path::new("/a$b/vi"));
+        assert!(entry.contains(r#"Exec="/a\$b/vi""#));
+    }
 }

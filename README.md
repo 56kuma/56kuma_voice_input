@@ -82,6 +82,29 @@ language = "ja"   # 省略時は自動判定
 ```
 
 キーの探索順は OpenAI と同じで、環境変数は `XAI_API_KEY`、config.toml は `[xai] api_key` です。
+
+### ElevenLabs（Scribe v3）を使う場合
+
+1. [ElevenLabs の API キー画面](https://elevenlabs.io/app/settings/api-keys) でキーを作成します（Speech to Text の権限を付けてください）。
+2. キーを OS の資格情報ストアに保存します（貼り付けて Enter）。
+   ```bash
+   ./target/release/voice_input --set-api-key --provider elevenlabs
+   ```
+3. `config.toml` に次を書きます。
+   ```toml
+   provider = "elevenlabs"
+   [elevenlabs]
+   language = "ja"          # language_code として送信。省略時は自動判定
+   # model = "scribe_v2"    # 既定は scribe_v3
+   ```
+4. 起動して、ログに `transcription provider: elevenlabs` が出れば設定完了です。
+
+| 項目 | 値 |
+|------|----|
+| 送信先 | `https://api.elevenlabs.io/v1/speech-to-text`（`[elevenlabs] base_url` で変更可） |
+| 認証 | `xi-api-key` ヘッダー |
+| キーの探索順 | OS Credential Store（`elevenlabs_api_key`）→ 環境変数 `ELEVENLABS_API_KEY` → config.toml の `[elevenlabs] api_key` |
+| その他 | `tag_audio_events=false` を送り、「(笑い)」のような音響タグが入力されないようにしています |
 設定ファイルの場所は `voice_input --config-path` で表示されます。項目は
 [`config.example.toml`](config.example.toml) を参照してください。
 
@@ -122,10 +145,13 @@ Windows では GUI アプリとしてビルドされるため、ラッパー（P
 
 ### Ubuntu (Wayland / GNOME)
 - ホットキー: XDG Desktop Portal の `GlobalShortcuts` を使います。初回起動時にショートカットの確認ダイアログが出ます（GNOME 46 以降 / KDE 6）。
+  - xdg-desktop-portal 1.19 以降（Ubuntu 26.04 など）はアプリ ID の登録が必須のため、起動時に `~/.local/share/applications/io.github.kuma56.VoiceInput.desktop`（メニュー非表示）を自動で作成し、`io.github.kuma56.VoiceInput` として登録します。これが無いと `An app id is required` で失敗します。
 - 文字入力: Wayland は他アプリへの入力注入を許可しないため、`wtype`（wlroots 系）→ `ydotool`（要 `ydotoold`）の順に試し、どちらも無ければ **クリップボードにコピーした上で Error 表示** にします（Ctrl+V で貼り付けできます）。
+  GNOME では `wtype` が使えないため `ydotool` を使います。`ydotool type` は日本語を打てないので、クリップボードに入れて `ydotool` で Ctrl+V を押します（ターミナルでは貼り付けられません）。セットアップは次の 1 コマンドです（ydotool のインストールと、ソケットを自分のユーザーに渡した `ydotoold` の常駐化。再ログイン不要）。
   ```bash
-  sudo apt install ydotool && sudo systemctl enable --now ydotool
+  sudo ./scripts/setup-ydotool-ubuntu.sh
   ```
+  ソケットは `/tmp/.ydotool_socket`（環境変数 `YDOTOOL_SOCKET` で変更可）。
 - オーバーレイの位置指定と最前面固定は Wayland のプロトコル上できないため、コンポジタの配置に従います。
 
 ## 設計
@@ -134,7 +160,7 @@ Windows では GUI アプリとしてビルドされるため、ラッパー（P
 src/
   app/          state.rs（純粋な状態遷移）  controller.rs（Effect の実行）
   audio/        audio_data.rs（純粋な変換）  recorder.rs（cpal）
-  transcription/provider.rs（trait）        openai.rs  groq.rs  xai.rs
+  transcription/provider.rs（trait）        openai.rs  groq.rs  xai.rs  elevenlabs.rs
   hotkey/       mod.rs（parse / debounce） windows.rs  linux.rs
   input/        mod.rs（trait）  windows.rs  x11.rs  wayland.rs  clipboard.rs
   ui/           state_view.rs（純粋な表示ロジック）  overlay.rs（eframe）

@@ -3,7 +3,7 @@
 //! Same multipart shape as OpenAI except the path and the rule that the
 //! audio file comes last, which the shared `post_transcription` guarantees.
 
-use super::openai::post_transcription;
+use super::openai::{post_transcription, Auth};
 use super::provider::{TranscriptionError, TranscriptionProvider};
 use crate::audio::audio_data::AudioData;
 
@@ -72,6 +72,7 @@ impl TranscriptionProvider for XaiTranscriptionProvider {
             &self.client,
             &self.config.endpoint(),
             self.api_key.as_deref(),
+            Auth::Bearer,
             self.config.request_fields(),
             audio,
         )

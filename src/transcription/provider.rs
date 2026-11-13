@@ -24,4 +24,14 @@ pub enum TranscriptionError {
 #[async_trait::async_trait]
 pub trait TranscriptionProvider: Send + Sync {
     async fn transcribe(&self, audio: AudioData) -> Result<String, TranscriptionError>;
+
+    /// Like `transcribe`, with words the speaker is likely to say (the user
+    /// dictionary's spellings). Backends without such a feature ignore them.
+    async fn transcribe_with_hints(
+        &self,
+        audio: AudioData,
+        _hints: &[String],
+    ) -> Result<String, TranscriptionError> {
+        self.transcribe(audio).await
+    }
 }

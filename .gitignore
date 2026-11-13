@@ -4,5 +4,8 @@
 # never commit local config that might carry secrets
 /config.toml
 /config.local.toml
+# personal dictionary (edited from the overlay)
+/dictionary.toml
+/dictionary.toml.bad
 /local.env
 /local

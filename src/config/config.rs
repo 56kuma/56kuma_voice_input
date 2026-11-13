@@ -24,6 +24,7 @@ pub struct AppConfig {
     pub xai: XaiSection,
     pub elevenlabs: ElevenLabsSection,
     pub overlay: OverlayConfig,
+    pub dictionary: DictionaryConfig,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -93,6 +94,22 @@ pub struct OverlayConfig {
     pub tray: bool,
 }
 
+/// The entries themselves live in `dictionary.toml` (edited from the
+/// overlay); this only holds how the dictionary is used.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct DictionaryConfig {
+    /// Also send the dictionary's spellings to the provider as vocabulary
+    /// hints, where the provider supports it (openai, groq).
+    pub hints: bool,
+}
+
+impl Default for DictionaryConfig {
+    fn default() -> Self {
+        Self { hints: true }
+    }
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum ConfigError {
     #[error("could not read config: {0}")]
@@ -114,6 +131,7 @@ impl Default for AppConfig {
             xai: XaiSection::default(),
             elevenlabs: ElevenLabsSection::default(),
             overlay: OverlayConfig::default(),
+            dictionary: DictionaryConfig::default(),
         }
     }
 }
@@ -361,6 +379,13 @@ mod tests {
     fn remove_fillers_false_keeps_the_transcript_verbatim() {
         let cfg = AppConfig::from_toml("remove_fillers = false").unwrap();
         assert!(!cfg.elevenlabs_config().no_verbatim);
+    }
+
+    #[test]
+    fn dictionary_hints_are_on_by_default_and_can_be_turned_off() {
+        assert!(AppConfig::default().dictionary.hints);
+        let cfg = AppConfig::from_toml("[dictionary]\nhints = false").unwrap();
+        assert!(!cfg.dictionary.hints);
     }
 
     #[test]

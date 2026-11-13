@@ -42,6 +42,16 @@ impl OpenAiConfig {
         fields
     }
 
+    /// `request_fields` plus the hints as the `prompt` field, which both
+    /// OpenAI and Groq use to bias the spelling of the words listed in it.
+    pub fn request_fields_with_hints(&self, hints: &[String]) -> Vec<(&'static str, String)> {
+        let mut fields = self.request_fields();
+        if !hints.is_empty() {
+            fields.push(("prompt", hints.join(", ")));
+        }
+        fields
+    }
+
     pub fn endpoint(&self) -> String {
         format!(
             "{}/audio/transcriptions",
@@ -114,12 +124,20 @@ impl OpenAiTranscriptionProvider {
 #[async_trait::async_trait]
 impl TranscriptionProvider for OpenAiTranscriptionProvider {
     async fn transcribe(&self, audio: AudioData) -> Result<String, TranscriptionError> {
+        self.transcribe_with_hints(audio, &[]).await
+    }
+
+    async fn transcribe_with_hints(
+        &self,
+        audio: AudioData,
+        hints: &[String],
+    ) -> Result<String, TranscriptionError> {
         post_transcription(
             &self.client,
             &self.config.endpoint(),
             self.api_key.as_deref(),
             Auth::Bearer,
-            self.config.request_fields(),
+            self.config.request_fields_with_hints(hints),
             audio,
         )
         .await
@@ -200,6 +218,17 @@ fn map_reqwest_error(err: reqwest::Error) -> TranscriptionError {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn hints_are_sent_as_the_prompt_and_omitted_when_there_are_none() {
+        let cfg = OpenAiConfig::default();
+        assert_eq!(cfg.request_fields_with_hints(&[]), cfg.request_fields());
+        let hints = ["Claude Code".to_owned(), "GitHub".to_owned()];
+        assert_eq!(
+            cfg.request_fields_with_hints(&hints).last(),
+            Some(&("prompt", "Claude Code, GitHub".to_owned()))
+        );
+    }
 
     #[test]
     fn request_fields_carry_model_and_json_format_and_optional_language() {

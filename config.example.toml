@@ -49,6 +49,12 @@ timeout_secs = 30
 #                          # `voice_input --set-api-key --provider elevenlabs`
 #                          # (OS credential store) or ELEVENLABS_API_KEY.
 
+[dictionary]
+# The entries themselves are edited by right-clicking the capsule and are
+# saved to dictionary.toml next to this file.
+hints = true               # also send the dictionary's spellings to the
+                           # provider as vocabulary hints (openai, groq)
+
 [overlay]
 position = "top-center"    # top-center | top-left | top-right
 margin = 12.0              # px from the screen edge

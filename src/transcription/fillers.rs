@@ -19,6 +19,17 @@ impl TranscriptionProvider for FillerStripping {
     async fn transcribe(&self, audio: AudioData) -> Result<String, TranscriptionError> {
         self.0.transcribe(audio).await.map(|t| strip_fillers(&t))
     }
+
+    async fn transcribe_with_hints(
+        &self,
+        audio: AudioData,
+        hints: &[String],
+    ) -> Result<String, TranscriptionError> {
+        self.0
+            .transcribe_with_hints(audio, hints)
+            .await
+            .map(|t| strip_fillers(&t))
+    }
 }
 
 /// Returns `text` without standalone fillers. Text containing none comes

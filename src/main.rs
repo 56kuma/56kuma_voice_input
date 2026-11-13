@@ -22,7 +22,9 @@ use voice_input::config::credentials::{
     OPENAI_KEY, XAI_KEY,
 };
 use voice_input::config::AppConfig;
+use voice_input::dictionary::DictionaryStore;
 use voice_input::hotkey::{Debouncer, Hotkey};
+use voice_input::transcription::dictionary::DictionaryProvider;
 use voice_input::transcription::elevenlabs::ElevenLabsTranscriptionProvider;
 use voice_input::transcription::fillers::FillerStripping;
 use voice_input::transcription::openai::OpenAiTranscriptionProvider;
@@ -44,6 +46,10 @@ USAGE:
     voice_input --config-path   print where config.toml is looked for,
                                 in priority order (first match wins)
     voice_input --help | --version
+
+Right-click the capsule to open the dictionary (fixes words the model
+keeps getting wrong, e.g. クラウドコード -> Claude Code); double-click
+it to quit.
 
 Logging: RUST_LOG=debug voice_input  (never logs keys, audio, or text)
          Also appended to log/voice_input.log in the working directory.
@@ -287,6 +293,17 @@ fn run() {
         provider
     };
 
+    // The user dictionary corrects the text of whichever provider is in use.
+    let dictionary = Arc::new(match DictionaryStore::default_path() {
+        Some(path) => DictionaryStore::load(path),
+        None => DictionaryStore::in_memory(Default::default()),
+    });
+    let provider: Arc<dyn TranscriptionProvider> = Arc::new(DictionaryProvider::new(
+        provider,
+        Arc::clone(&dictionary),
+        config.dictionary.hints,
+    ));
+
     let level = LevelMeter::default();
     let model = OverlayModel::new(level.clone());
     let overlay = OverlayHandle(Arc::clone(&model));
@@ -342,7 +359,7 @@ fn run() {
         "voice_input {} ready: press {hotkey_label} to start",
         env!("CARGO_PKG_VERSION")
     );
-    if let Err(e) = overlay::run(model, config.overlay.clone(), on_ready) {
+    if let Err(e) = overlay::run(model, config.overlay.clone(), dictionary, on_ready) {
         log::error!("overlay failed: {e}");
         std::process::exit(1);
     }

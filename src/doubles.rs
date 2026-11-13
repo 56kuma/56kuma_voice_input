@@ -98,6 +98,7 @@ impl AudioRecorder for FakeAudioRecorder {
 pub struct FakeTranscriptionProvider {
     result: Result<String, TranscriptionError>,
     received: Arc<Mutex<Vec<AudioData>>>,
+    received_hints: Arc<Mutex<Vec<Vec<String>>>>,
 }
 
 impl FakeTranscriptionProvider {
@@ -105,6 +106,7 @@ impl FakeTranscriptionProvider {
         Self {
             result: Ok(text.into()),
             received: Arc::default(),
+            received_hints: Arc::default(),
         }
     }
 
@@ -112,11 +114,17 @@ impl FakeTranscriptionProvider {
         Self {
             result: Err(err),
             received: Arc::default(),
+            received_hints: Arc::default(),
         }
     }
 
     pub fn received(&self) -> Vec<AudioData> {
         self.received.lock().unwrap().clone()
+    }
+
+    /// The hints of every `transcribe_with_hints` call, in order.
+    pub fn received_hints(&self) -> Vec<Vec<String>> {
+        self.received_hints.lock().unwrap().clone()
     }
 }
 
@@ -125,6 +133,15 @@ impl TranscriptionProvider for FakeTranscriptionProvider {
     async fn transcribe(&self, audio: AudioData) -> Result<String, TranscriptionError> {
         self.received.lock().unwrap().push(audio);
         self.result.clone()
+    }
+
+    async fn transcribe_with_hints(
+        &self,
+        audio: AudioData,
+        hints: &[String],
+    ) -> Result<String, TranscriptionError> {
+        self.received_hints.lock().unwrap().push(hints.to_vec());
+        self.transcribe(audio).await
     }
 }
 

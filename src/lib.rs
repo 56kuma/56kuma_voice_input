@@ -8,6 +8,7 @@
 pub mod app;
 pub mod audio;
 pub mod config;
+pub mod dictionary;
 pub mod doubles;
 pub mod hotkey;
 pub mod input;

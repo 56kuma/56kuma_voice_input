@@ -4,18 +4,21 @@
 //! Design: a small translucent capsule at the top-center of the screen, one
 //! glyph, no text. Sizes follow the silver ratio via [`Layout`]. It only
 //! repaints while `StateView::needs_animation` is true, so Idle costs
-//! nothing.
+//! nothing. Right-clicking the capsule opens the dictionary window;
+//! double-clicking it quits.
 
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use eframe::egui::{self, Color32, Pos2, Rect, Stroke, Vec2};
 
+use super::dictionary_window::DictionaryWindow;
 use super::state_view::{pulse_scale, Glyph, Layout, StateView};
 use super::Overlay;
 use crate::app::state::State;
 use crate::audio::recorder::LevelMeter;
 use crate::config::config::OverlayConfig;
+use crate::dictionary::DictionaryStore;
 
 /// Shared between the controller thread (writes state) and the UI thread.
 pub struct OverlayModel {
@@ -65,6 +68,7 @@ impl Overlay for OverlayHandle {
 pub fn run(
     model: Arc<OverlayModel>,
     config: OverlayConfig,
+    dictionary: Arc<DictionaryStore>,
     on_ready: Box<dyn FnOnce() + Send>,
 ) -> eframe::Result {
     let layout = Layout::from_height(config.height);
@@ -80,6 +84,13 @@ pub fn run(
         .with_active(false);
     let options = eframe::NativeOptions {
         viewport,
+        // With vsync, a buffer swap on Wayland waits for the compositor to
+        // show the previous frame. A window that is not on screen yet (the
+        // dictionary window while it is being created) never gets that
+        // signal, and the swap blocks the one thread that could finish
+        // creating it: the app hangs. Nothing here repaints continuously,
+        // so there is nothing for vsync to pace anyway.
+        vsync: false,
         ..Default::default()
     };
     let mut on_ready = Some(on_ready);
@@ -97,6 +108,7 @@ pub fn run(
                 layout,
                 started: Instant::now(),
                 positioned: false,
+                dictionary: DictionaryWindow::new(dictionary),
             }))
         }),
     )
@@ -108,6 +120,7 @@ struct OverlayApp {
     layout: Layout,
     started: Instant,
     positioned: bool,
+    dictionary: DictionaryWindow,
 }
 
 // Palette: quiet greys plus one accent per meaning.
@@ -154,6 +167,7 @@ impl eframe::App for OverlayApp {
         };
         let level = self.model.level.get();
         let t = now.duration_since(self.started);
+        let mut open_dictionary = false;
 
         egui::CentralPanel::default()
             .frame(egui::Frame::NONE)
@@ -177,7 +191,16 @@ impl eframe::App for OverlayApp {
                 }) {
                     ctx.send_viewport_cmd(egui::ViewportCommand::Close);
                 }
+                // Right-click opens the dictionary (its own window: the
+                // capsule is too small to hold a menu).
+                open_dictionary =
+                    ui.input(|i| i.pointer.button_clicked(egui::PointerButton::Secondary));
             });
+
+        if open_dictionary {
+            self.dictionary.open(ctx);
+        }
+        self.dictionary.show(ctx);
 
         if animating {
             ctx.request_repaint_after(Duration::from_millis(33));

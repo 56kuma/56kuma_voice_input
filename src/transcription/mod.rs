@@ -1,6 +1,7 @@
 //! Speech-to-text providers behind one vendor-neutral trait.
 
 pub mod elevenlabs;
+pub mod fillers;
 pub mod groq;
 pub mod openai;
 pub mod provider;

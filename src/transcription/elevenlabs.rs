@@ -3,6 +3,7 @@
 //! Multipart like OpenAI, but the key goes in an `xi-api-key` header and the
 //! fields are `model_id` / `language_code`. Audio-event tags such as
 //! "(laughter)" are turned off: they would be typed into the user's text.
+//! `no_verbatim` asks the model to leave out filler words and false starts.
 
 use super::openai::{post_transcription, Auth};
 use super::provider::{TranscriptionError, TranscriptionProvider};
@@ -19,6 +20,9 @@ pub struct ElevenLabsConfig {
     /// ISO-639-1/3 code such as `"ja"`. `None` lets the API auto-detect.
     pub language: Option<String>,
     pub timeout_secs: u64,
+    /// Sent as `no_verbatim`: drop filler words, false starts and
+    /// non-speech sounds (scribe_v2 and later).
+    pub no_verbatim: bool,
 }
 
 impl Default for ElevenLabsConfig {
@@ -28,6 +32,7 @@ impl Default for ElevenLabsConfig {
             model: DEFAULT_MODEL.to_owned(),
             language: None,
             timeout_secs: 30,
+            no_verbatim: true,
         }
     }
 }
@@ -39,6 +44,9 @@ impl ElevenLabsConfig {
             ("model_id", self.model.clone()),
             ("tag_audio_events", "false".to_owned()),
         ];
+        if self.no_verbatim {
+            fields.push(("no_verbatim", "true".to_owned()));
+        }
         if let Some(language) = &self.language {
             fields.push(("language_code", language.clone()));
         }
@@ -96,11 +104,13 @@ mod tests {
             vec![
                 ("model_id", "scribe_v3".to_owned()),
                 ("tag_audio_events", "false".to_owned()),
+                ("no_verbatim", "true".to_owned()),
             ]
         );
 
         let cfg = ElevenLabsConfig {
             language: Some("ja".into()),
+            no_verbatim: false,
             ..Default::default()
         };
         assert_eq!(

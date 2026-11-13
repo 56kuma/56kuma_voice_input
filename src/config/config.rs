@@ -14,6 +14,10 @@ pub struct AppConfig {
     pub provider: String,
     /// Seconds the Error state stays visible before returning to Idle.
     pub error_display_secs: u64,
+    /// Drop spoken fillers ("えーと", "あのー" ...) from the inserted text:
+    /// asks the API for a non-verbatim transcript where it can (ElevenLabs)
+    /// and strips standalone fillers locally for every provider.
+    pub remove_fillers: bool,
     pub audio: AudioConfig,
     pub openai: OpenAiSection,
     pub groq: GroqSection,
@@ -101,6 +105,7 @@ impl Default for AppConfig {
             hotkey: "Ctrl+Space".to_owned(),
             provider: "openai".to_owned(),
             error_display_secs: 3,
+            remove_fillers: true,
             audio: AudioConfig::default(),
             openai: OpenAiSection::default(),
             groq: GroqSection::default(),
@@ -249,6 +254,7 @@ impl AppConfig {
             model: self.elevenlabs.model.clone(),
             language: self.elevenlabs.language.clone(),
             timeout_secs: self.elevenlabs.timeout_secs,
+            no_verbatim: self.remove_fillers,
         }
     }
 }
@@ -344,7 +350,14 @@ mod tests {
         let el = cfg.elevenlabs_config();
         assert_eq!(el.language.as_deref(), Some("ja"));
         assert_eq!(el.model, "scribe_v3");
+        assert!(cfg.remove_fillers && el.no_verbatim);
         assert_eq!(el.endpoint(), "https://api.elevenlabs.io/v1/speech-to-text");
+    }
+
+    #[test]
+    fn remove_fillers_false_keeps_the_transcript_verbatim() {
+        let cfg = AppConfig::from_toml("remove_fillers = false").unwrap();
+        assert!(!cfg.elevenlabs_config().no_verbatim);
     }
 
     #[test]

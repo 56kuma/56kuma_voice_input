@@ -33,6 +33,14 @@ impl OverlayModel {
         })
     }
 
+    /// Closes the overlay window, which ends the application.
+    pub fn close(&self) {
+        match self.ctx.lock().unwrap().as_ref() {
+            Some(ctx) => ctx.send_viewport_cmd(egui::ViewportCommand::Close),
+            None => std::process::exit(0),
+        }
+    }
+
     fn attach(&self, ctx: egui::Context) {
         *self.ctx.lock().unwrap() = Some(ctx);
     }

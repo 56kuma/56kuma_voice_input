@@ -85,6 +85,8 @@ pub struct OverlayConfig {
     pub margin: f32,
     /// Overlay height in logical pixels; width follows the silver ratio.
     pub height: f32,
+    /// Also show the state as an icon in the desktop's top bar (Linux only).
+    pub tray: bool,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -173,6 +175,7 @@ impl Default for OverlayConfig {
             position: "top-center".to_owned(),
             margin: 12.0,
             height: 44.0,
+            tray: true,
         }
     }
 }

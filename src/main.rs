@@ -205,6 +205,26 @@ fn set_api_key(source: KeySource) {
     }
 }
 
+/// Everywhere the state is shown: the capsule, plus the top-bar icon on Linux.
+fn state_displays(
+    config: &AppConfig,
+    capsule: &OverlayHandle,
+    model: &Arc<OverlayModel>,
+) -> voice_input::ui::Fanout {
+    #[allow(unused_mut)]
+    let mut displays: Vec<Box<dyn Overlay>> = vec![Box::new(capsule.clone())];
+    #[cfg(target_os = "linux")]
+    if config.overlay.tray {
+        let model = Arc::clone(model);
+        displays.push(Box::new(voice_input::ui::tray::TrayOverlay::spawn(
+            Box::new(move || model.close()),
+        )));
+    }
+    #[cfg(not(target_os = "linux"))]
+    let _ = (config, model);
+    voice_input::ui::Fanout(displays)
+}
+
 fn run() {
     let config = match AppConfig::load() {
         Ok(c) => c,
@@ -275,7 +295,7 @@ fn run() {
         recorder: Box::new(CpalRecorder::new(config.audio.sample_rate, level)),
         provider,
         injector: voice_input::platform::text_injector(),
-        overlay: Box::new(overlay.clone()),
+        overlay: Box::new(state_displays(&config, &overlay, &model)),
         error_display: Duration::from_secs(config.error_display_secs.max(1)),
     });
     let events = controller.sender();

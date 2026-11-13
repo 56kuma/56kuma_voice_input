@@ -53,3 +53,4 @@ timeout_secs = 30
 position = "top-center"    # top-center | top-left | top-right
 margin = 12.0              # px from the screen edge
 height = 44.0              # px; width = height x sqrt(2) (silver ratio)
+tray = true                # Linux: also show the state as a top-bar icon

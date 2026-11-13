@@ -105,6 +105,14 @@ language = "ja"   # 省略時は自動判定
 | 認証 | `xi-api-key` ヘッダー |
 | キーの探索順 | OS Credential Store（`elevenlabs_api_key`）→ 環境変数 `ELEVENLABS_API_KEY` → config.toml の `[elevenlabs] api_key` |
 | その他 | `tag_audio_events=false` を送り、「(笑い)」のような音響タグが入力されないようにしています |
+
+### フィラーの除去
+
+既定（`remove_fillers = true`）で、「えーと」「あのー」のようなフィラーを入力から取り除きます。
+
+- ElevenLabs には `no_verbatim=true` を送り、フィラーや言い直しを含まない文字起こしを受け取ります。
+- どのプロバイダでも、返ってきたテキストから単独で現れるフィラー（えー／えーと／えっと／あのー／そのー／うーん／んー／あー）を取り除きます。「あの人」「まあまあ」のような普通の言葉を壊さないよう、「あの」「その」「まあ」「なんか」は対象外です。
+- 話したとおりに入力したいときは `config.toml` の先頭に `remove_fillers = false` を書きます。
 設定ファイルの場所は `voice_input --config-path` で表示されます。項目は
 [`config.example.toml`](config.example.toml) を参照してください。
 

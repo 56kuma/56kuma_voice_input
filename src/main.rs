@@ -24,6 +24,7 @@ use voice_input::config::credentials::{
 use voice_input::config::AppConfig;
 use voice_input::hotkey::{Debouncer, Hotkey};
 use voice_input::transcription::elevenlabs::ElevenLabsTranscriptionProvider;
+use voice_input::transcription::fillers::FillerStripping;
 use voice_input::transcription::openai::OpenAiTranscriptionProvider;
 use voice_input::transcription::xai::XaiTranscriptionProvider;
 use voice_input::transcription::TranscriptionProvider;
@@ -259,6 +260,11 @@ fn run() {
             api_key,
             config.openai_config(),
         )),
+    };
+    let provider: Arc<dyn TranscriptionProvider> = if config.remove_fillers {
+        Arc::new(FillerStripping(provider))
+    } else {
+        provider
     };
 
     let level = LevelMeter::default();

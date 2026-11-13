@@ -6,6 +6,10 @@
 hotkey = "Ctrl+Space"      # toggle: press to start, press again to stop
 provider = "openai"        # "openai", "groq", "xai" (Grok) or "elevenlabs"
 error_display_secs = 3     # how long "!" stays before returning to idle
+remove_fillers = true      # drop "えーと" / "あのー" ...: ElevenLabs gets
+                           # no_verbatim=true, and standalone fillers are
+                           # stripped locally for every provider.
+                           # false = insert the transcript verbatim
 
 [audio]
 sample_rate = 16000        # mono 16 kHz PCM is sent to the API
